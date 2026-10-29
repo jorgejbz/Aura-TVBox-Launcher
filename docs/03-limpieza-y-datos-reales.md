@@ -57,7 +57,7 @@ sólo de Google Play/servicios, YouTube y Stremio · 0 crashes · 53 paquetes (a
 
 ## "Imagen de fábrica" propia (2026-10-29)
 Tras un formateo la caja queda con Aura y las apps del usuario, sin nada del firmware original:
-- `/system/priv-app/Aura/Aura.apk` (1.3.1): Aura es app de sistema privilegiada = launcher desde el primer arranque;
+- `/system/priv-app/Aura/Aura.apk` (1.0, la versión publicada): Aura es app de sistema privilegiada = launcher desde el primer arranque;
   con WRITE_SECURE_SETTINGS reactiva una vez el servicio de botones.
 - `/system/etc/aura/defaults.properties`: favoritas + botones (138 Stremio, 139 Xuper CC, 140 AirScreen, 183 YouTube).
   Si cambias favoritas/botones y quieres conservarlos tras un formateo, hay que volver a copiar este archivo.
@@ -66,7 +66,7 @@ Tras un formateo la caja queda con Aura y las apps del usuario, sin nada del fir
   Copias en `apks/fabrica/`.
 - `/system/bin/preinstall.sh` reescrito (`scripts/preinstall.sh`): instala también apps divididas por sesión;
   se quitó el arranque automático de la app de pruebas de fábrica. Probado en sitio: 6/6 "Success".
-- Aura 1.3.1 oculta de "Todas las apps" las apps que ya tienen mosaico (ZArchiver, Ajustes).
+- Aura oculta de "Todas las apps" las apps que ya tienen mosaico (ZArchiver, Ajustes).
 - No sobreviven al formateo (normal en Android): cuenta de Google, sesión/Premium de AirScreen, datos dentro de cada app.
 
 ## Incidente Wi-Fi (2026-10-29 03:30)

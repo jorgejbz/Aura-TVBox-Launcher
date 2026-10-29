@@ -4,10 +4,12 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
-// Release signing comes from keystore.properties (kept out of git).
+// Release signing comes from llave-firma/keystore.properties next to launcher/ (kept out of git).
+// storeFile inside it is relative to that file.
+val keystoreFile = listOf(rootProject.file("../llave-firma/keystore.properties"), rootProject.file("keystore.properties"))
+    .firstOrNull { it.exists() }
 val keystoreProps = Properties().apply {
-    val f = rootProject.file("keystore.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
+    keystoreFile?.inputStream()?.use { load(it) }
 }
 
 android {
@@ -21,14 +23,15 @@ android {
         // Low minSdk on purpose: the TV box's real Android version is unverified.
         minSdk = 21
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.3.1"
+        // versionCode only ever grows (Android refuses downgrades); 1.0 is the first public release.
+        versionCode = 6
+        versionName = "1.0"
     }
 
     signingConfigs {
         if (keystoreProps.containsKey("storeFile")) {
             create("release") {
-                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storeFile = File(keystoreFile!!.parentFile, keystoreProps.getProperty("storeFile"))
                 storePassword = keystoreProps.getProperty("storePassword")
                 keyAlias = keystoreProps.getProperty("keyAlias")
                 keyPassword = keystoreProps.getProperty("keyPassword")

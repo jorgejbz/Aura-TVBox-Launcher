@@ -5,7 +5,8 @@ apks/
 # Build outputs and run logs (logs include LAN IPs and MAC addresses).
 build/
 logs/
-# Signing secrets.
+# Signing secrets: only the owner can sign Aura updates that install over existing copies.
+llave-firma/
 *.jks
 *.keystore
 keystore.properties

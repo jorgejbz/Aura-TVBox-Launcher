@@ -6,8 +6,9 @@ el diagnóstico decide qué pasos aplican. **No asumas que lo que dice la caja e
 ## 0. Requisitos en la PC (Windows)
 - Android SDK platform-tools (`adb`) y build-tools (`aapt2`, `apksigner`); Android Studio (trae Java en `jbr`).
 - `JAVA_HOME` de usuario → `C:\Program Files\Android\Android Studio\jbr`.
-- La llave de firma de Aura (`aura-release.jks` + `keystore.properties`) copiada en `launcher/` desde tu respaldo
-  privado. Sin ella Aura se firma con la llave de depuración (funciona, pero no actualiza un Aura firmado con la otra).
+- La llave de firma de Aura en `llave-firma/` (`aura-release.jks` + `keystore.properties`, nunca en Git).
+  Sólo el dueño la tiene: sin ella Aura se firma con la llave de depuración (funciona, pero no puede actualizar
+  un Aura oficial ya instalado).
 
 ## 1. Conectar
 1. En la caja: Ajustes › Preferencias › Información › pulsar 7 veces "Compilación" › Opciones de desarrollador ›
