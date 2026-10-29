@@ -12,6 +12,32 @@ Probado en una caja HiSilicon Hi3798MV300H que se vendía como "Android 11.1, 4 
 
 ---
 
+## Sólo quiero el launcher
+
+No hace falta limpiar tu TV Box: Aura se instala como cualquier app (Android 5.0 o superior, cualquier procesador).
+
+**⬇️ [Descargar Aura-1.0.apk](https://github.com/jorgejbz/Aura-TVBox-Launcher/releases/latest/download/Aura-1.0.apk)**
+· todas las versiones en [Releases](https://github.com/jorgejbz/Aura-TVBox-Launcher/releases)
+
+Elige una forma de instalarlo:
+- **Con una memoria USB** (sin PC conectada): copia el APK a la memoria, conéctala a la TV Box, ábrelo con el
+  explorador de archivos de la caja y pulsa *Instalar*. Si pide permiso de "fuentes desconocidas", actívalo
+  sólo para ese explorador.
+- **Desde la propia TV**: instala una app para descargar archivos (por ejemplo *Downloader* de Play Store),
+  escribe el enlace de descarga de arriba e instala.
+- **Por ADB desde la PC**: `adb install -r Aura-1.0.apk`.
+
+Después:
+1. Pulsa **Inicio** en el control y elige **Aura → Siempre**. En Android 10 o superior también puedes hacerlo en
+   *Ajustes › Apps › Apps predeterminadas › App de inicio*. Tu launcher anterior no se borra: puedes volver a él ahí mismo.
+2. Para usar los botones del control con tus apps, abre Aura › **Botones** › *Activar el servicio* y enciende
+   **"Botones del control (Aura)"** en *Ajustes › Accesibilidad*. Sólo recibe pulsaciones de teclas; no lee la pantalla.
+3. Mantén **OK** (o pulsa **Menú**) sobre una app para añadirla a Favoritas, moverla o ver su información.
+
+> Si tu caja muestra datos raros (dice tener más RAM o una versión de Android que no cuadra), la tarjeta
+> **Sistema** de Aura te enseña los datos reales. Si quieres ir más allá y quitar malware de fábrica, sigue la
+> guía de abajo.
+
 ## ¿Usas Claude Code?
 Copia el contenido de **[PROMPT-CLAUDE-CODE.txt](PROMPT-CLAUDE-CODE.txt)**, completa los datos de tu caja y pégalo en
 Claude Code: seguirá esta guía paso a paso, pidiéndote permiso antes de cada cambio importante.
