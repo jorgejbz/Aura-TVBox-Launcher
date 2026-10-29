@@ -25,3 +25,6 @@ docs/capturas/28-*
 docs/capturas/29-*
 docs/capturas/30-*
 docs/capturas/32-*
+
+# CEC bridge build output.
+cec-bridge/out/

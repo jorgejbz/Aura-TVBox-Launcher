@@ -112,6 +112,7 @@ Compilar: `cd launcher; .\gradlew.bat assembleRelease`.
 | `respaldar.ps1` | Copia las particiones críticas con SHA-256. |
 | `fabrica.ps1` + `preinstall.sh` | Aura como app de sistema y tus apps en `/system/preinstall` (incluye APK divididos). |
 | `patch_javacore.py` | Quita la falsificación de almacenamiento de `libjavacore.so` (verifica los bytes; aborta si el build es otro). |
+| `control-tv.ps1` | Instala el puente HDMI-CEC para usar **el control de la TV** ([cec-bridge/README.md](cec-bridge/README.md)). Probado con Samsung UN50TU7000 + control BN59-01259B. |
 | `capturar.ps1`, `ui-estado.ps1` | Capturas y estado de pantalla para pruebas. |
 
 ## Carpeta local (no se sube a GitHub)

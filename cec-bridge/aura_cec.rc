@@ -1,0 +1,18 @@
+# Aura CEC bridge: lets the TV's remote (HDMI-CEC / Anynet+) control the box on firmwares that
+# drop <User Control Pressed>. Installed to /system/etc/init/aura_cec.rc.
+service aura_cec /system/bin/app_process /system/bin com.jajua.aura.cec.CecBridge
+    class late_start
+    user shell
+    group shell log input
+    setenv CLASSPATH /system/etc/aura/cecbridge.dex
+    seclabel u:r:shell:s0
+    disabled
+
+# HdmiLogger reads this once when system_server starts. With it, every received CEC message is
+# logged as "[R]:<...>"; the default warning log drops repeats within 20 s (missed key presses).
+on post-fs-data
+    setprop log.tag.HDMI D
+
+# Start once Android is up (the input service must exist before keys can be injected).
+on property:sys.boot_completed=1
+    start aura_cec

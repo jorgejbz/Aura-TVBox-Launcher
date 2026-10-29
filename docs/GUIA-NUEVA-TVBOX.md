@@ -58,6 +58,12 @@ Android 9 o menos: pulsar Inicio › Aura › Siempre (o hacerlo app de sistema,
 Botones del control: `settings put secure enabled_accessibility_services com.jajua.aura/com.jajua.aura.KeyMapService`
 y `settings put secure accessibility_enabled 1` (o desde Aura › Botones).
 
+## 5b. Control de la TV (opcional)
+Si la TV tiene HDMI-CEC (Samsung *Anynet+*, LG *SimpLink*…) actívalo en la TV y revisa en la caja
+`adb shell dumpsys hdmi_control`: si aparecen `<User Control Pressed>` respondidos con `<Feature Abort>`,
+el firmware bloquea las teclas. Instala el puente con `.\scripts\control-tv.ps1 -Serial IP:PUERTO`.
+Detalles, equipos probados y limitaciones: `cec-bridge/README.md`.
+
 ## 6. "De fábrica" (sobrevive a un formateo)
 Edita `scripts/aura-defaults.properties` (favoritas y botones) y ejecuta:
 ```powershell
