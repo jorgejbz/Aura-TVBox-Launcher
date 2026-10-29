@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 16:9 banner shown by Android TV style launchers. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#FF0B0C10" android:pathData="M0,0h320v180h-320z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFF5F5F7"
+        android:strokeWidth="6"
+        android:pathData="M110,64a26,26 0,1 1,0 52a26,26 0,1 1,0 -52z" />
+    <path android:fillColor="#FF8E9BFF" android:pathData="M110,81a9,9 0,1 1,0 18a9,9 0,1 1,0 -18z" />
+    <!-- "AURA" drawn as simple strokes so no font is needed. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFF5F5F7"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M156,110l10,-40l10,40M160,96h12M186,70v28a10,10 0,0 0,20 0v-28M218,110v-40h10a10,10 0,0 1,0 20h-10M228,90l10,20M246,110l10,-40l10,40M250,96h12" />
+</vector>

@@ -1,0 +1,26 @@
+# Firmware dumps: huge, device-specific and contain the factory malware.
+backups/
+# Third-party APKs: not redistributable (and some exceed GitHub's 100 MB limit).
+apks/
+# Build outputs and run logs (logs include LAN IPs and MAC addresses).
+build/
+logs/
+# Signing secrets.
+*.jks
+*.keystore
+keystore.properties
+# Android/Gradle.
+launcher/.gradle/
+launcher/build/
+launcher/app/build/
+launcher/local.properties
+.idea/
+*.iml
+
+# Screenshots with personal data (Google account e-mail, Wi-Fi name).
+docs/capturas/26-*
+docs/capturas/27-*
+docs/capturas/28-*
+docs/capturas/29-*
+docs/capturas/30-*
+docs/capturas/32-*

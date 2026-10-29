@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Aura" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="android:windowDisablePreview">false</item>
+        <item name="android:alertDialogTheme">@style/Theme.Aura.Dialog</item>
+    </style>
+
+    <style name="Theme.Aura.Dialog" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:windowBackground">@drawable/dialog_bg</item>
+        <item name="android:textColorPrimary">@color/text</item>
+    </style>
+
+    <color name="bg">#FF07080B</color>
+    <color name="text">#FFF5F5F7</color>
+    <color name="accent">#FFFFFFFF</color>
+</resources>
