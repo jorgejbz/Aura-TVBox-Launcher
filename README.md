@@ -12,6 +12,10 @@ Probado en una caja HiSilicon Hi3798MV300H que se vendía como "Android 11.1, 4 
 
 ---
 
+## ¿Usas Claude Code?
+Copia el contenido de **[PROMPT-CLAUDE-CODE.txt](PROMPT-CLAUDE-CODE.txt)**, completa los datos de tu caja y pégalo en
+Claude Code: seguirá esta guía paso a paso, pidiéndote permiso antes de cada cambio importante.
+
 ## Inicio rápido: una TV Box nueva
 
 > Cada caja es distinta. **El diagnóstico decide qué pasos aplican**; no des por cierto lo que dice la caja.

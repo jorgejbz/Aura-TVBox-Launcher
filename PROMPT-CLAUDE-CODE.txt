@@ -1,0 +1,63 @@
+PROMPT PARA CLAUDE CODE: LIMPIAR Y PERSONALIZAR UNA TV BOX ANDROID
+=================================================================
+Cómo usarlo:
+  1. Instala Claude Code en tu PC con Windows y Android Studio (trae adb).
+  2. En la TV Box activa: Ajustes > Preferencias > Información > pulsa 7 veces "Compilación"
+     > Opciones de desarrollador > Depuración USB. Conéctala a la misma red que tu PC (mejor por cable).
+  3. Completa los datos entre [corchetes] de abajo (si no sabes alguno, déjalo en blanco).
+  4. Copia todo desde "INICIO DEL PROMPT" hasta "FIN DEL PROMPT" y pégalo en Claude Code.
+
+----------------------------- INICIO DEL PROMPT -----------------------------
+
+Quiero limpiar y personalizar mi TV Box Android usando el proyecto
+https://github.com/jorgejbz/Aura-TVBox-Launcher (licencia MIT).
+Trabaja directamente en mi PC con Windows (PowerShell) y en la TV Box mediante adb.
+
+DATOS DE MI TV BOX (lo que dice la caja o el vendedor; pueden ser falsos):
+- Modelo anunciado: [ej. MXQ Pro 5G 4K]
+- Android que dice tener: [ej. 11.1]
+- RAM / almacenamiento anunciados: [ej. 4 GB / 32 GB]
+- IP de la TV Box, si la conozco: [ej. 192.168.1.X o en blanco]
+- Conexión: [Wi-Fi / Ethernet / USB]
+- Carpeta con los APK que quiero instalar: [ej. C:\Users\TU_USUARIO\Downloads\apks-tvbox o ninguna]
+- Apps que quiero conservar o instalar: [ej. YouTube, Stremio, un gestor de archivos, duplicado de pantalla]
+- Mi celular para duplicar pantalla: [Android / iPhone / ambos]
+
+QUÉ QUIERO AL FINAL:
+- El launcher Aura del repositorio como pantalla de inicio.
+- Sin malware ni apps inútiles de fábrica.
+- Que Android muestre sus datos REALES (versión, RAM, almacenamiento), no los inventados por el firmware.
+- Botones del control configurables (Aura > Botones).
+- Si el firmware lo permite: que tras un formateo quede igual (Aura + mis apps), como si fuera de fábrica.
+
+CÓMO TRABAJAR (obligatorio):
+1. Clona el repositorio y lee primero README.md y docs/GUIA-NUEVA-TVBOX.md. Síguelos como receta,
+   pero recuerda que mi caja puede ser distinta a la del proyecto (otro chip, otros trucos o ninguno).
+2. Revisa qué herramientas tengo instaladas antes de instalar nada; no reinstales lo que ya funciona.
+3. Ejecuta scripts/diagnostico.ps1 (sólo lectura). Antes de hacer nada, explícame el informe en palabras
+   sencillas: datos reales frente a los anunciados, ADB real o falso, apps sospechosas, puertos, conexiones.
+4. NO des por hecho que un ADB que conecta es real: el diagnóstico lo comprueba. Nunca intentes eludir la
+   autorización de ADB ni mecanismos de seguridad. Si hay que aceptar algo en la TV, dime qué hacer.
+5. Antes de modificar el sistema, ejecuta scripts/respaldar.ps1 y confirma que el respaldo quedó bien.
+6. Pide mi autorización antes de: desinstalar o deshabilitar apps del sistema, escribir en /system o /vendor,
+   aplicar parches (como scripts/patch_javacore.py) o reiniciar. Explícame el riesgo y cómo revertirlo.
+7. Prefiere lo reversible: primero deshabilitar los instaladores ocultos, luego desinstalar lo que bajaron,
+   reiniciar y volver a diagnosticar. No borres nada que no sepas qué hace (algunas apps del fabricante son
+   necesarias para el video o la red).
+8. No hagas restablecimiento de fábrica, ni desbloquees el bootloader, ni flashees firmware sin mi permiso.
+9. Revisa cada APK antes de instalarlo (paquete, versión, arquitectura, Android mínimo, firma) y avísame si es
+   incompatible con mi caja o si su firma parece de una copia modificada.
+10. No inventes resultados: verifica cada cambio (capturas con scripts/capturar.ps1, estado con
+    scripts/ui-estado.ps1, reinicios de prueba) y dime claramente qué funcionó y qué no.
+11. No escribas mis contraseñas en archivos ni logs. Si te doy una para iniciar sesión, úsala sólo en la TV.
+12. Al terminar, deja un resumen de lo hecho, los riesgos pendientes (por ejemplo, ADB abierto sin
+    contraseña) y cómo deshacer cada cambio.
+
+Empieza por el paso 1 y detente después del diagnóstico (paso 3) para que yo decida cómo seguir.
+
+------------------------------ FIN DEL PROMPT ------------------------------
+
+Notas:
+- Cada TV Box es distinta: el diagnóstico decide qué partes de la guía aplican a la tuya.
+- Modificar el sistema de una TV Box tiene riesgos; hazlo siempre con respaldo y bajo tu responsabilidad.
+- Proyecto y guía: https://github.com/jorgejbz/Aura-TVBox-Launcher
