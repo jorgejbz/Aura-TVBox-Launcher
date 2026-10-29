@@ -35,8 +35,8 @@ foreach ($pkg in $CopiarDeLaCaja) {
     else { $d = Join-Path $Apks $label; New-Item -ItemType Directory -Force $d | Out-Null; foreach ($p in $paths) { adb -s $Serial pull $p (Join-Path $d (Split-Path $p -Leaf)) | Out-Null } }
     "copiado $pkg ($($paths.Count) apk)"
 }
-$aura = Get-ChildItem (Join-Path $root 'build\Aura-*.apk') | Sort-Object LastWriteTime | Select-Object -Last 1
-if (-not $aura) { throw 'No hay build\Aura-*.apk: compila Aura primero (ver README).' }
+$aura = Get-ChildItem (Join-Path $root 'build\Aura*.apk') | Sort-Object LastWriteTime | Select-Object -Last 1
+if (-not $aura) { throw 'No hay build\Aura.apk: compila Aura primero (ver README).' }
 
 # 2. Confirmar
 "`nSe va a escribir en /system:"

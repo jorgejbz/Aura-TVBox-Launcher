@@ -1,7 +1,7 @@
 # 02 — Launcher "Aura" (2026-10-28)
 
 Launcher Android nativo (Java, sin librerías externas), inspirado visualmente en Lumen y Apple TV.
-- Código: `launcher/` · APK firmado: `build/Aura-1.0.0.apk` (46 KB) · minSdk 21 (Android 5.0+), cualquier ABI.
+- Código: `launcher/` · APK firmado: `build/Aura.apk` (~57 KB) · minSdk 21 (Android 5.0+), cualquier ABI.
 - Firma release: `llave-firma/aura-release.jks` + `keystore.properties` (fuera de Git). **No perderla**:
   sin ella, las actualizaciones exigen desinstalar Aura.
 - Compilar: `cd launcher; .\gradlew.bat assembleRelease` (JAVA_HOME de usuario → Android Studio\jbr).

@@ -50,8 +50,8 @@ Si el chip Wi-Fi deja de aparecer tras muchos reinicios (`mmc2: error -110 … S
 
 ## 5. Aura
 ```powershell
-cd launcher; .\gradlew.bat assembleRelease; copy app\build\outputs\apk\release\app-release.apk ..\build\Aura-<versión>.apk
-adb -s IP:PUERTO install -r ..\build\Aura-<versión>.apk
+cd launcher; .\gradlew.bat assembleRelease; copy app\build\outputs\apk\release\app-release.apk ..\build\Aura.apk
+adb -s IP:PUERTO install -r ..\build\Aura.apk
 ```
 Fijar como inicio: Android 10+ `cmd role add-role-holder android.app.role.HOME com.jajua.aura`;
 Android 9 o menos: pulsar Inicio › Aura › Siempre (o hacerlo app de sistema, paso 6).

@@ -16,7 +16,7 @@ Probado en una caja HiSilicon Hi3798MV300H que se vendía como "Android 11.1, 4 
 
 No hace falta limpiar tu TV Box: Aura se instala como cualquier app (Android 5.0 o superior, cualquier procesador).
 
-**⬇️ [Descargar Aura-1.0.apk](https://github.com/jorgejbz/Aura-TVBox-Launcher/releases/latest/download/Aura-1.0.apk)**
+**⬇️ [Descargar Aura.apk](https://github.com/jorgejbz/Aura-TVBox-Launcher/releases/latest/download/Aura.apk)**
 · todas las versiones en [Releases](https://github.com/jorgejbz/Aura-TVBox-Launcher/releases)
 
 Elige una forma de instalarlo:
@@ -25,7 +25,7 @@ Elige una forma de instalarlo:
   sólo para ese explorador.
 - **Desde la propia TV**: instala una app para descargar archivos (por ejemplo *Downloader* de Play Store),
   escribe el enlace de descarga de arriba e instala.
-- **Por ADB desde la PC**: `adb install -r Aura-1.0.apk`.
+- **Por ADB desde la PC**: `adb install -r Aura.apk`.
 
 Después:
 1. Pulsa **Inicio** en el control y elige **Aura → Siempre**. En Android 10 o superior también puedes hacerlo en
@@ -75,9 +75,9 @@ Según el informe y la guía: primero deshabilitar los **instaladores** ocultos,
 reiniciar y volver a diagnosticar. Borrar de `/system` sólo con respaldo y sabiendo qué es cada cosa.
 
 ### 5. Instalar Aura
-Descarga `Aura-1.0.apk` de **[Releases](https://github.com/jorgejbz/Aura-TVBox-Launcher/releases)** (o compílalo) y:
+Descarga `Aura.apk` (siempre la última versión) de **[Releases](https://github.com/jorgejbz/Aura-TVBox-Launcher/releases)** (o compílalo) y:
 ```powershell
-adb -s <IP_DE_TU_TVBOX>:<PUERTO> install -r Aura-1.0.apk
+adb -s <IP_DE_TU_TVBOX>:<PUERTO> install -r Aura.apk
 ```
 Pulsa Inicio en el control → **Aura** → *Siempre*. Los botones del control se asignan en Aura › **Botones**.
 
@@ -119,7 +119,7 @@ Compilar: `cd launcher; .\gradlew.bat assembleRelease`.
 |---|---|
 | `llave-firma/` | **Llave de firma de Aura.** Sólo el dueño puede firmar actualizaciones que se instalen encima. Haz copia. |
 | `apks/fabrica/` | Copia exacta de las apps usadas (para la siguiente caja). |
-| `build/` | `Aura-1.0.apk` firmado. |
+| `build/` | `Aura.apk` firmado (versión 1.0). |
 | `logs/` | Informes de diagnóstico (contienen IP/MAC de tu red). |
 
 ## Licencia y actualizaciones
