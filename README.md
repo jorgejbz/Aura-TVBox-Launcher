@@ -13,6 +13,8 @@ Probado en una caja HiSilicon Hi3798MV300H que se vendía como "Android 11.1, 4 
 
 ![Pantalla de inicio de Aura](docs/capturas/aura-inicio.png)
 
+*Capturas de Aura en un emulador de TV, con apps de ejemplo.*
+
 | Sistema: datos reales del equipo | Logo de arranque |
 |---|---|
 | ![Información del sistema en Aura](docs/capturas/aura-sistema.png) | ![Logo AURA TVBOX](docs/capturas/aura-logo.png) |
