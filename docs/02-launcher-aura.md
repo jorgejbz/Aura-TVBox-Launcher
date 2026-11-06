@@ -1,7 +1,7 @@
 # 02 — Launcher "Aura" (2026-10-28)
 
 Launcher Android nativo (Java, sin librerías externas), inspirado visualmente en Lumen y Apple TV.
-- Código: `launcher/` · APK firmado: `build/Aura.apk` (~57 KB) · minSdk 21 (Android 5.0+), cualquier ABI.
+- Código: `launcher/` · APK firmado: `build/Aura.apk` (~65 KB) · minSdk 21 (Android 5.0+), cualquier ABI.
 - Firma release: `llave-firma/aura-release.jks` + `keystore.properties` (fuera de Git). **No perderla**:
   sin ella, las actualizaciones exigen desinstalar Aura.
 - Compilar: `cd launcher; .\gradlew.bat assembleRelease` (JAVA_HOME de usuario → Android Studio\jbr).
@@ -20,7 +20,7 @@ Launcher Android nativo (Java, sin librerías externas), inspirado visualmente e
 - Atrás / Inicio en la pantalla principal: vuelve arriba. Al regresar de una app se conserva el foco.
 - Los extremos de cada fila no "saltan" a otras filas.
 
-## Probado en emulador (Android 14, perfil TV 1080p) — capturas en `docs/capturas/`
+## Probado en emulador (Android 14, perfil TV 1080p)
 | Prueba | Resultado |
 |---|---|
 | Arranque, foco inicial visible | OK (tras corregir el modo táctil) |

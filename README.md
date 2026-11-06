@@ -11,6 +11,12 @@ Probado en una caja HiSilicon Hi3798MV300H que se vendía como "Android 11.1, 4 
 (historial en `docs/01`–`03`), y en una Rockchip RK3228A que decía "Android 11.1, 4 GB/32 GB" y era Android 7.1 con
 1 GB/5,4 GB y otro proxy residencial (`docs/04`).
 
+![Pantalla de inicio de Aura](docs/capturas/aura-inicio.png)
+
+| Sistema: datos reales del equipo | Logo de arranque |
+|---|---|
+| ![Información del sistema en Aura](docs/capturas/aura-sistema.png) | ![Logo AURA TVBOX](docs/capturas/aura-logo.png) |
+
 ---
 
 ## Sólo quiero el launcher
@@ -114,7 +120,7 @@ Un formateo real es la prueba final: pide permiso y sigue la lista de comprobaci
 ---
 
 ## Aura
-Launcher Android nativo: Java, sin dependencias, Android 5.0+, ~60 KB.
+Launcher Android nativo: Java, sin dependencias, Android 5.0+, ~65 KB.
 - Favoritas grandes, accesos (Archivos, Ajustes, Red, Botones, Sistema) y todas las apps sin repetidos.
 - Fondo que toma el color de la app enfocada; foco siempre visible; navegación sólo con flechas, OK, Atrás e Inicio.
 - **Botones**: asigna apps a botones del control (servicio de accesibilidad que sólo filtra teclas, no lee la pantalla).
