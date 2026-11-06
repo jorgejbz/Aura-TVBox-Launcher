@@ -11,12 +11,21 @@ param(
     [Parameter(Mandatory)] [string] $Serial,
     [string] $Apks = (Join-Path $PSScriptRoot '..\apks\fabrica'),
     [string[]] $CopiarDeLaCaja = @(),
+    # Carpeta opcional con APK parcheados, nombrados priv-app@Carpeta@App.apk (ver patch_settings.py).
+    [string] $Bind = '',
+    # Animación de arranque (''  para conservar la del firmware).
+    [string] $Animacion = (Join-Path $PSScriptRoot 'bootanimation.zip'),
+    # Se escriben en build.prop, así que sobreviven a un formateo. Vacío = no tocar.
+    [string] $Idioma = '',           # ej. es-MX
+    [string] $ZonaHoraria = '',      # ej. America/Mexico_City
+    [ValidateRange(0, 100)] [int] $Overscan = 0,   # 100 = imagen completa; 0 = no tocar
     [switch] $Probar,
     [switch] $SinConfirmar
 )
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
-function Sh($c) { (adb -s $Serial shell $c 2>&1 | Out-String).Trim() }
+# PowerShell 5.1 turns anything adb writes to stderr into a terminating error under 'Stop'.
+function Sh($c) { $ErrorActionPreference = 'Continue'; (adb -s $Serial shell $c 2>&1 | Out-String).Trim() }
 
 adb -s $Serial root | Out-Null; Start-Sleep 4
 if ($Serial -match ':') { adb connect $Serial | Out-Null; Start-Sleep 2 }
@@ -47,21 +56,51 @@ Sh 'ls /system/preinstall' -split "`n" | ForEach-Object { "  - $_" }
 if (-not $SinConfirmar -and (Read-Host '¿Continuar? (s/n)') -ne 's') { 'Cancelado.'; exit 0 }
 
 # 3. Escribir (dispositivo de bloque en rw solo mientras dura)
-$sysdev = Sh "mount | grep ' / ' | cut -d' ' -f1"
+# adb escribe su progreso en stderr: con 'Stop' y la salida redirigida, PowerShell 5.1 lo trataría como error fatal.
+$ErrorActionPreference = 'Continue'
+# system-as-root mounts it on /; older firmwares (e.g. Rockchip Android 7) mount it on /system with a rootfs on /.
+$sysmnt = if (Sh "mount | grep ' /system '") { '/system' } else { '/' }
+$sysdev = Sh "mount | grep ' $sysmnt ' | cut -d' ' -f1"
 if ($sysdev -eq '/dev/root') { $sysdev = Sh 'readlink -f /dev/block/by-name/system 2>/dev/null || ls /dev/block/platform/*/by-name/system' }
-Sh "blockdev --setrw $sysdev; mount -o remount,rw / || mount -o remount,rw /system" | Out-Null
+Sh "blockdev --setrw $sysdev; mount -o remount,rw $sysmnt" | Out-Null
+if (-not (Sh "mount | grep ' $sysmnt ' | grep '[(,]rw[,)]'")) { adb -s $Serial remount | Out-Null }
+if (-not (Sh "mount | grep ' $sysmnt ' | grep '[(,]rw[,)]'")) { throw "No pude montar $sysmnt en escritura." }
 Sh 'rm -rf /system/preinstall/*; mkdir -p /system/etc/aura /system/priv-app/Aura' | Out-Null
 Get-ChildItem $Apks | ForEach-Object { adb -s $Serial push $_.FullName /system/preinstall/ | Select-Object -Last 1 }
-adb -s $Serial push (Join-Path $PSScriptRoot 'preinstall.sh') /system/bin/preinstall.sh | Out-Null
+# Overwrite in place: init runs the script under its own SELinux label (e.g. preinstall_exec), which must be kept.
+adb -s $Serial push (Join-Path $PSScriptRoot 'preinstall.sh') /data/local/tmp/preinstall.sh | Out-Null
+Sh 'cat /data/local/tmp/preinstall.sh > /system/bin/preinstall.sh' | Out-Null
 adb -s $Serial push (Join-Path $PSScriptRoot 'aura-defaults.properties') /system/etc/aura/defaults.properties | Out-Null
+# Patched firmware screens (see patch_settings.py); preinstall.sh mounts them after each boot.
+if (Test-Path $Bind) {
+    Sh 'mkdir -p /system/etc/aura/bind' | Out-Null
+    Get-ChildItem $Bind -File | ForEach-Object { adb -s $Serial push $_.FullName /system/etc/aura/bind/ | Select-Object -Last 1 }
+}
 adb -s $Serial push $aura.FullName /data/local/tmp/Aura.apk | Out-Null
 Sh 'cp /data/local/tmp/Aura.apk /system/priv-app/Aura/Aura.apk.new && mv /system/priv-app/Aura/Aura.apk.new /system/priv-app/Aura/Aura.apk' | Out-Null
 Sh ('chown -R root:root /system/preinstall /system/etc/aura /system/priv-app/Aura; ' +
     'find /system/preinstall /system/etc/aura /system/priv-app/Aura -type d -exec chmod 755 {} \; ; ' +
     'find /system/preinstall /system/etc/aura /system/priv-app/Aura -type f -exec chmod 644 {} \; ; ' +
     'chown root:shell /system/bin/preinstall.sh; chmod 755 /system/bin/preinstall.sh; ' +
-    'chcon -R u:object_r:system_file:s0 /system/preinstall /system/etc/aura /system/priv-app/Aura /system/bin/preinstall.sh; sync') | Out-Null
-Sh 'ls -lR /system/preinstall /system/priv-app/Aura; df -h / | tail -1'
+    'chcon -R u:object_r:system_file:s0 /system/preinstall /system/etc/aura /system/priv-app/Aura; sync') | Out-Null
+Sh "ls -lR /system/preinstall /system/priv-app/Aura; df -h $sysmnt"
+
+# 3b. Arranque y ajustes de la caja
+function Set-BuildProp($clave, $valor) {
+    Sh "grep -q '^$clave=' /system/build.prop && sed -i 's#^$clave=.*#$clave=$valor#' /system/build.prop || echo '$clave=$valor' >> /system/build.prop" | Out-Null
+    "build.prop: $clave=$valor"
+}
+if ($Animacion -and (Test-Path $Animacion)) {
+    adb -s $Serial push $Animacion /data/local/tmp/bootanimation.zip | Out-Null
+    Sh ('cp /data/local/tmp/bootanimation.zip /system/media/bootanimation.zip.new && chown root:root /system/media/bootanimation.zip.new && ' +
+        'chmod 644 /system/media/bootanimation.zip.new && chcon u:object_r:system_file:s0 /system/media/bootanimation.zip.new && ' +
+        'mv /system/media/bootanimation.zip.new /system/media/bootanimation.zip; rm -f /data/local/tmp/bootanimation.zip') | Out-Null
+    'Animación de arranque instalada.'
+}
+if ($Idioma) { Set-BuildProp 'ro.product.locale' $Idioma }
+if ($ZonaHoraria) { Set-BuildProp 'persist.sys.timezone' $ZonaHoraria }
+if ($Overscan) { Set-BuildProp 'persist.sys.overscan.main' "overscan $Overscan,$Overscan,$Overscan,$Overscan" }
+Sh 'sync' | Out-Null
 
 # 4. Probar sin formatear (reinstala encima, conserva datos)
 if ($Probar) {

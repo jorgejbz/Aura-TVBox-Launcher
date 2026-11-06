@@ -2,6 +2,9 @@
 # Collects facts about an Android TV box. Read-only. Run by diagnostico.ps1 through adb.
 # Output is split into "##SECTION" blocks that the PowerShell side parses.
 
+# Old firmwares (Android 7) have no awk binary and no `pm list packages -U`.
+command -v awk >/dev/null 2>&1 || awk() { busybox awk "$@"; }
+
 echo "##ID"
 for p in ro.product.manufacturer ro.product.brand ro.product.model ro.product.device \
          ro.board.platform ro.hardware ro.product.chipset ro.build.product ro.hi.product \
@@ -34,7 +37,15 @@ echo "##HOME"
 cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -1
 
 echo "##PKGS"
-pm list packages -f -i -U
+if pm list packages -f -i -U 2>&1 | grep -q '^package:'; then
+    pm list packages -f -i -U
+else
+    pm list packages -f -i | while read -r line; do
+        name=${line%% *}; name=${name##*=}
+        uid=$(dumpsys package "$name" | sed -n 's/.*userId=\([0-9]*\).*/\1/p' | head -1)
+        echo "$line uid:$uid"
+    done
+fi
 
 echo "##INSTALLERS"
 # Third-party apps allowed to install other apps silently.

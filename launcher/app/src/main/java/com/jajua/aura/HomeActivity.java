@@ -396,10 +396,24 @@ public final class HomeActivity extends Activity implements Card.Listener {
                 break;
             }
         }
-        addIfResolvable(tiles, "tile:settings", R.string.tile_settings, R.string.tile_settings_desc,
-                Settings.ACTION_SETTINGS);
-        addIfResolvable(tiles, "tile:network", R.string.tile_network, R.string.tile_network_desc,
-                Settings.ACTION_WIFI_SETTINGS);
+        // Some firmwares ship both the phone and the TV settings: use the TV one, and only show it once.
+        Entry tvSettings = byPackage.get("com.android.tv.settings");
+        if (tvSettings != null) {
+            tiles.add(new Entry("tile:settings", tvSettings.packageName, getString(R.string.tile_settings),
+                    getString(R.string.tile_settings_desc), tvSettings.intent, false));
+        } else {
+            addIfResolvable(tiles, "tile:settings", R.string.tile_settings, R.string.tile_settings_desc,
+                    new Intent(Settings.ACTION_SETTINGS));
+        }
+        // The TV settings' network side panel if the device has it, not the full-screen phone page.
+        Intent network = new Intent(Settings.ACTION_WIFI_SETTINGS)
+                .addCategory("android.intent.category.LEANBACK_SETTINGS");
+        if (network.resolveActivity(getPackageManager()) != null) {
+            addIfResolvable(tiles, "tile:network", R.string.tile_network, R.string.tile_network_desc, network);
+        } else {
+            addIfResolvable(tiles, "tile:network", R.string.tile_network, R.string.tile_network_desc,
+                    new Intent(Settings.ACTION_WIFI_SETTINGS));
+        }
         // Handled inside Aura, so they never depend on the (possibly patched) system screens.
         tiles.add(new Entry("tile:keys", null, getString(R.string.tile_keys),
                 getString(R.string.tile_keys_desc), null, false));
@@ -408,8 +422,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
         return tiles;
     }
 
-    private void addIfResolvable(List<Entry> out, String key, int label, int desc, String action) {
-        Intent i = new Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    private void addIfResolvable(List<Entry> out, String key, int label, int desc, Intent i) {
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         android.content.ComponentName target = i.resolveActivity(getPackageManager());
         if (target == null) return;
         // Remember which app handles it, so that app is not repeated in "Todas las apps".
@@ -596,7 +610,9 @@ public final class HomeActivity extends Activity implements Card.Listener {
         LinearLayout list = vertical();
         int pad = Ui.u(20);
         list.setPadding(pad, Ui.u(8), pad, 0);
-        String claimedNote = android.startsWith("Android " + claimed + " ") ? null
+        // "7.1.2" is a truthful claim for "Android 7.1 (API 25)"; only flag a different version.
+        String real = android.substring("Android ".length(), android.indexOf(" ("));
+        String claimedNote = claimed.equals(real) || claimed.startsWith(real + ".") ? null
                 : getString(R.string.info_claimed, claimed);
         infoRow(list, R.string.info_android, android, claimedNote);
         infoRow(list, R.string.info_chip, SystemInfo.chip(), null);
@@ -607,12 +623,31 @@ public final class HomeActivity extends Activity implements Card.Listener {
                 SystemInfo.size(disk[1]), SystemInfo.size(disk[0])), null);
         infoRow(list, R.string.info_display, SystemInfo.display(this), null);
         infoRow(list, R.string.info_ip, SystemInfo.ipAddress(this), null);
+        final int adbPort = SystemInfo.adbNetworkPort();
+        infoRow(list, R.string.info_adb, adbPort > 0 ? getString(R.string.adb_open, adbPort)
+                : getString(R.string.adb_closed), adbPort > 0 ? getString(R.string.adb_open_note) : null);
 
         dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.info_title)
                 .setView(list)
                 .setPositiveButton(R.string.info_close, null)
+                .setNegativeButton(adbPort > 0 ? R.string.adb_turn_off : R.string.adb_turn_on,
+                        (d, w) -> toggleAdb(adbPort == 0))
+                .setNeutralButton(R.string.update_check, (d, w) -> startActivity(
+                        new Intent(this, UpdateActivity.class)))
                 .show();
+    }
+
+    /** Shows the port's real state afterwards: a firmware can refuse the change. */
+    private void toggleAdb(boolean on) {
+        SystemInfo.setAdbNetwork(this, on);
+        new android.os.Handler(getMainLooper()).postDelayed(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (on == (SystemInfo.adbNetworkPort() == 0)) {
+                Toast.makeText(this, R.string.adb_refused, Toast.LENGTH_LONG).show();
+            }
+            showSystemInfo();
+        }, 2500);
     }
 
     private void infoRow(LinearLayout list, int label, String value, String note) {
