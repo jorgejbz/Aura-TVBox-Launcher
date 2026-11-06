@@ -5,7 +5,9 @@ param(
     [Parameter(Mandatory)] [string] $Serial,
     # Particiones a copiar si existen (los nombres cambian entre fabricantes).
     [string[]] $Particiones = @('boot', 'recovery', 'recoverybak', 'system', 'vendor', 'odm', 'product',
-        'misc', 'bootargs', 'bootargsbak', 'dtb', 'dtbo', 'vbmeta', 'private', 'deviceinfo', 'baseparam', 'pqparam', 'logo')
+        'misc', 'bootargs', 'bootargsbak', 'dtb', 'dtbo', 'vbmeta', 'private', 'deviceinfo', 'baseparam', 'pqparam', 'logo',
+        # Rockchip
+        'uboot', 'trust', 'baseparamer', 'resource', 'kernel', 'backup', 'metadata')
 )
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -33,6 +35,8 @@ foreach ($p in $Particiones) {
     "{0}  {1}" -f (Get-FileHash $f.FullName -Algorithm SHA256).Hash, $f.Name | Add-Content (Join-Path $out 'SHA256.txt')
     "{0,-12} {1,8:N1} MB  ({2:N0} s)" -f $p, ($f.Length / 1MB), ((Get-Date) - $t).TotalSeconds
 }
+# adb prints progress on stderr, and PowerShell 5.1 treats that as a terminating error under 'Stop'.
+$ErrorActionPreference = 'Continue'
 foreach ($f in '/system/build.prop', '/vendor/build.prop') { adb -s $Serial pull $f (Join-Path $out ($f.Trim('/') -replace '/', '-')) 2>$null | Out-Null }
-adb -s $Serial shell pm list packages -f -i -U | Set-Content (Join-Path $out 'paquetes.txt')
+adb -s $Serial shell pm list packages -f -i | Set-Content (Join-Path $out 'paquetes.txt')
 "Respaldo listo en $out (no lo subas a GitHub: es el firmware de fábrica)."

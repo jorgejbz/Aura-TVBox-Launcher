@@ -1,6 +1,7 @@
 package com.jajua.aura;
 
 import android.app.Activity;
+import android.content.Context;
 import android.os.Build;
 import android.os.Environment;
 import android.os.StatFs;
@@ -98,19 +99,22 @@ final class SystemInfo {
         return String.format(Locale.getDefault(), "%.0f MB", bytes / (1024.0 * 1024));
     }
 
-    /** {total, available} bytes from /proc/meminfo. */
+    /** {total, available} bytes from /proc/meminfo. Kernels older than 3.14 have no MemAvailable. */
     static long[] memory() {
-        long total = 0, avail = 0;
+        long total = 0, avail = -1, free = 0, buffers = 0, cached = 0;
         try (BufferedReader r = new BufferedReader(new FileReader("/proc/meminfo"))) {
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("MemTotal:")) total = kb(line);
                 else if (line.startsWith("MemAvailable:")) avail = kb(line);
+                else if (line.startsWith("MemFree:")) free = kb(line);
+                else if (line.startsWith("Buffers:")) buffers = kb(line);
+                else if (line.startsWith("Cached:")) cached = kb(line);
             }
         } catch (IOException ignored) {
             // Leave zeros; the caller shows "desconocido".
         }
-        return new long[] {total, avail};
+        return new long[] {total, avail >= 0 ? avail : free + buffers + cached};
     }
 
     private static long kb(String line) {
@@ -118,11 +122,28 @@ final class SystemInfo {
         return digits.isEmpty() ? 0 : Long.parseLong(digits) * 1024;
     }
 
+    /** The SoC named by the kernel when it gives a model number; build properties can say anything. */
     static String chip() {
+        String hardware = cpuinfoHardware();
+        if (hardware.matches(".*\\d.*")) return hardware;
         String maker = prop("ro.product.chipset");
         String product = prop("ro.build.product");
         String s = (maker + " " + product).trim();
         return s.isEmpty() ? Build.HARDWARE : s;
+    }
+
+    private static String cpuinfoHardware() {
+        try (BufferedReader r = new BufferedReader(new FileReader("/proc/cpuinfo"))) {
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (line.startsWith("Hardware") && line.contains(":")) {
+                    return line.substring(line.indexOf(':') + 1).trim();
+                }
+            }
+        } catch (IOException ignored) {
+            // Fall through: not every kernel exposes it.
+        }
+        return "";
     }
 
     static String cpu() {
@@ -167,6 +188,81 @@ final class SystemInfo {
             // Fall through.
         }
         return "—";
+    }
+
+    /** The port adbd really listens on, or 0. Reads the kernel's table, then falls back to properties. */
+    static int adbNetworkPort() {
+        int port = number(prop("service.adb.tcp.port"));
+        if (port <= 0) port = number(prop("persist.adb.tcp.port"));
+        if (port <= 0 || !"running".equals(prop("init.svc.adbd"))) return 0;
+        Boolean listening = isListening(port);
+        return listening == null || listening ? port : 0;
+    }
+
+    /** Null when the kernel's table cannot be read (Android 10+ hides it from apps). */
+    private static Boolean isListening(int port) {
+        String hex = String.format(Locale.US, ":%04X ", port);
+        boolean readable = false;
+        for (String path : new String[] {"/proc/net/tcp", "/proc/net/tcp6"}) {
+            try (BufferedReader r = new BufferedReader(new FileReader(path))) {
+                readable = true;
+                String line;
+                while ((line = r.readLine()) != null) {
+                    // Columns: sl local_address rem_address st; state 0A means LISTEN.
+                    String[] f = line.trim().split("\\s+");
+                    if (f.length > 3 && "0A".equals(f[3]) && (f[1] + " ").endsWith(hex)) return true;
+                }
+            } catch (IOException ignored) {
+                // Try the next table.
+            }
+        }
+        return readable ? Boolean.FALSE : null;
+    }
+
+    /**
+     * Opens or closes network ADB. Turning off "USB debugging" does not close the port on every
+     * firmware, so the properties init watches are set too. The caller must check the real result:
+     * a firmware can refuse these writes.
+     */
+    static void setAdbNetwork(Context c, boolean on) {
+        android.content.SharedPreferences prefs = c.getSharedPreferences("adb", Context.MODE_PRIVATE);
+        int current = number(prop("service.adb.tcp.port"));
+        if (current > 0) prefs.edit().putInt("port", current).apply();
+        boolean hasInternetSwitch = !prop("persist.internet.adb.enable").isEmpty();
+        try {
+            android.provider.Settings.Global.putInt(c.getContentResolver(),
+                    android.provider.Settings.Global.ADB_ENABLED, on ? 1 : 0);
+        } catch (SecurityException ignored) {
+            // Aura is not a system app here; the properties below may still work.
+        }
+        if (hasInternetSwitch) {
+            setProp("persist.internet.adb.enable", on ? "1" : "0");
+            return;
+        }
+        setProp("service.adb.tcp.port", on ? String.valueOf(prefs.getInt("port", 5555)) : "0");
+        setProp("ctl.restart", "adbd");
+    }
+
+    private static void setProp(String key, String value) {
+        Process p = null;
+        try {
+            p = new ProcessBuilder("/system/bin/setprop", key, value).redirectErrorStream(true).start();
+            p.waitFor();
+        } catch (IOException e) {
+            // Reported by the caller, which checks the real port afterwards.
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            if (p != null) p.destroy();
+        }
+    }
+
+    private static int number(String s) {
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /** android.os.SystemProperties is hidden but readable on all versions this app supports. */

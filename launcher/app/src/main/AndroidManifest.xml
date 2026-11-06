@@ -6,6 +6,9 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Only used when the user asks to check GitHub for a newer Aura. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Lets "Desinstalar" open the standard system uninstall dialog. -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- Only granted when Aura is a privileged system app: re-enables the button service after a reset. -->
@@ -55,6 +58,25 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Answers "Actualizaciones del sistema" in the system settings when Aura is a system app. -->
+        <activity
+            android:name=".UpdateActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/update_title"
+            android:theme="@style/Theme.Aura.Transparent">
+            <intent-filter android:priority="100">
+                <action android:name="android.settings.SYSTEM_UPDATE_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name=".InstallProvider"
+            android:authorities="com.jajua.aura.install"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <service
             android:name=".KeyMapService"
