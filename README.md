@@ -46,56 +46,70 @@ Claude Code: seguirá esta guía paso a paso, pidiéndote permiso antes de cada 
 ## Inicio rápido: una TV Box nueva
 
 > Cada caja es distinta. **El diagnóstico decide qué pasos aplican**; no des por cierto lo que dice la caja.
-> Detalle de cada paso: **[docs/GUIA-NUEVA-TVBOX.md](docs/GUIA-NUEVA-TVBOX.md)**.
+> **La receta completa está en [docs/GUIA-NUEVA-TVBOX.md](docs/GUIA-NUEVA-TVBOX.md)**, con cada comando, el malware ya
+> identificado, qué apps conservar y los problemas conocidos. Esto es el resumen.
 
 ### 0. Preparar la PC (una vez)
-1. Instala **Android Studio** (trae `adb`, `aapt2`, `apksigner` y Java).
+1. Instala **Android Studio** (trae `adb`, `aapt2`, `apksigner`, `zipalign`, `dexdump` y Java).
 2. `JAVA_HOME` de usuario → `C:\Program Files\Android\Android Studio\jbr`.
-3. `git clone https://github.com/jorgejbz/Aura-TVBox-Launcher` (o usa tu carpeta local).
+3. `git clone https://github.com/jorgejbz/Aura-TVBox-Launcher`, y `pip install capstone pyelftools pillow`.
+4. Pon en `build\Aura.apk` la [última versión](https://github.com/jorgejbz/Aura-TVBox-Launcher/releases/latest/download/Aura.apk)
+   y en `apks\fabrica\` tus apps.
 
 ### 1. Conectar la caja
 En la TV: *Ajustes › Preferencias › Información* → pulsa 7 veces **Compilación** → *Opciones de desarrollador* →
-**Depuración USB**. Conecta la caja a la misma red que la PC (Ethernet es lo más estable).
+**Depuración USB**. Conéctala a la red de la PC **por Ethernet**: tras formatear vuelve sola a la red. No uses el hotspot
+de tu celular: el malware puede gastar tus datos.
 
 ### 2. Diagnosticar (sólo lectura)
 ```powershell
-.\scripts\diagnostico.ps1            # busca la caja en tu red; o: -Ip <IP_DE_TU_TVBOX>
+.\scripts\diagnostico.ps1 -Ip <IP_DE_TU_TVBOX>     # sin -Ip busca en una sola red /24 y se salta las 172.x
 ```
 Deja un informe en `logs/` y marca con ⚠️: ADB falso, versión/RAM/almacenamiento falsificados, apps instaladas en
 silencio, apps con permisos de sistema, servicios root escuchando y apps con muchas conexiones (proxy).
-Si no encuentra ADB: cable USB con datos al puerto OTG de la caja (ver guía).
+**Haz también las revisiones a mano de la guía**: conexiones por proceso, contenido de los APK sospechosos, y lo que
+muestra Ajustes frente al kernel. Sin alertas no significa limpia. Si no aparece ADB, ver la guía.
 
 ### 3. Respaldar (antes de tocar nada)
 ```powershell
 .\scripts\respaldar.ps1 -Serial <IP_DE_TU_TVBOX>:<PUERTO>
 ```
-Guarda el respaldo fuera de GitHub. Necesita un firmware que permita `adb root` (los `userdebug`).
+Compara cada SHA-256 con la caja y guarda el respaldo fuera de GitHub. Necesita un firmware que permita `adb root`.
 
-### 4. Limpiar
-Según el informe y la guía: primero deshabilitar los **instaladores** ocultos, luego desinstalar lo que bajaron,
-reiniciar y volver a diagnosticar. Borrar de `/system` sólo con respaldo y sabiendo qué es cada cosa.
+### 4. Quitar el malware
+En este orden: instala Aura para tener siempre inicio, **deshabilita los instaladores** y el launcher del fabricante,
+desinstala lo que bajaron, sustituye `preinstall.sh`, **reinicia y verifica**, y sólo entonces borra de `/system`.
 
-### 5. Instalar Aura
-Descarga `Aura.apk` (siempre la última versión) de **[Releases](https://github.com/jorgejbz/Aura-TVBox-Launcher/releases)** (o compílalo) y:
+### 5. Quitar las falsificaciones
+`build.prop`, `patch_javacore.py` (lo que ven las apps) y `patch_settings.py` (lo que muestra Ajustes). Los parches abortan
+sin escribir si el firmware es otro, y la guía explica cómo localizar la falsificación en ese caso.
+
+### 6. Quitar apps del fabricante
+Launchers, exploradores, actualizadores y apps de prueba. La guía tiene la lista de qué quitar y qué **no**: sin
+`HiRMService` y `HiVideoPlayer` no hay video en HiSilicon.
+
+### 7. Dejarlo "de fábrica"
+Edita `scripts/aura-defaults.properties` (favoritas y botones), y luego:
 ```powershell
-adb -s <IP_DE_TU_TVBOX>:<PUERTO> install -r Aura.apk
+.\scripts\fabrica.ps1 -Serial <IP_DE_TU_TVBOX>:<PUERTO> -Apks apks\fabrica -Idioma es-MX -ZonaHoraria America/Mexico_City
 ```
-Pulsa Inicio en el control → **Aura** → *Siempre*. Los botones del control se asignan en Aura › **Botones**.
+Instala Aura como app de sistema, tus apps (**borra lo que hubiera en `/system/preinstall`**) y el logo de arranque. Se
+detiene sin tocar nada si el firmware no tiene mecanismo de preinstalación. Según la caja, añade `-Overscan 100` (imagen
+completa, probado en Rockchip) y `-Bind <carpeta>` (Ajustes parcheado).
 
-### 6. Dejarlo "de fábrica" (opcional)
-Edita `scripts/aura-defaults.properties` (favoritas y botones) e instala antes tus apps en la caja; luego:
-```powershell
-.\scripts\fabrica.ps1 -Serial <IP_DE_TU_TVBOX>:<PUERTO> -CopiarDeLaCaja com.stremio.one,com.google.android.youtube.tv -Probar
-```
-Tras un formateo, la caja arrancará en Aura con esas apps y la animación de arranque de Aura. Se detiene sin tocar
-nada si el firmware no tiene mecanismo de preinstalación. Opcionales que también sobreviven al formateo:
-`-Idioma es-MX`, `-ZonaHoraria America/Mexico_City`, `-Overscan 100` (imagen a pantalla completa) y `-Bind <carpeta>`
-(pantallas del firmware parcheadas, ver `docs/04`).
+### 8. Revisar imagen, video y control
+Comprueba que la imagen ocupa toda la pantalla, que el video usa el decodificador de hardware y qué botones declara tu
+control. La guía tiene los comandos, y el puente HDMI-CEC si quieres usar el control de la TV.
 
-### 7. Cerrar
-- No uses "Actualización del sistema" / "Local update" del fabricante: reinstala el firmware original.
-- Si el ADB por red no pide permiso, ciérralo en Aura › **Sistema** › *Cerrar ADB*. Apagar la Depuración USB no basta
-  en todos los firmwares. Un formateo vuelve a abrirlo.
+### 9. Formatear y verificar
+Un formateo real es la prueba final: pide permiso y sigue la lista de comprobación de la guía.
+
+### 10. Cerrar
+- Cierra el ADB por red en Aura › **Sistema** › *Cerrar ADB* y compruébalo desde la PC. Apagar la Depuración USB no basta
+  en todos los firmwares, y un formateo puede reabrirlo. Para volver a entrar, *Abrir ADB*, desde la TV.
+- No uses "Actualización del sistema" ni "Local update" del fabricante: reinstala el firmware original.
+
+**¿Ya tienes una caja lista y sólo quieres actualizar Aura?** No uses `fabrica.ps1`: ver "Actualizar Aura" en la guía.
 
 ---
 
