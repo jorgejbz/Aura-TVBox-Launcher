@@ -11,18 +11,19 @@ import zipfile
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-W, H = 1280, 720
+# Compact, on pure black: the box centres it without scaling, so no edge shows at 720p or 1080p.
+W, H = 800, 450
 FPS = 24
 FADE_FRAMES = 18
 BREATH_FRAMES = 48
 SCALE = 3  # Supersampling, so the ring's edges stay smooth.
-BG = (7, 8, 11)
+BG = (0, 0, 0)
 RING = (245, 245, 247)
 LIGHT = (142, 155, 255)
-RING_CENTER = (W // 2, 300)
+RING_CENTER = (W // 2, 170)
 RING_RADIUS, RING_WIDTH, LIGHT_RADIUS = 56, 13, 20
 TEXT = "AURA TVBOX"
-TEXT_Y = 412
+TEXT_Y = 282
 TRACKING = 14
 FONTS = [r"C:\Windows\Fonts\segoeuil.ttf", r"C:\Windows\Fonts\arial.ttf",
          "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]

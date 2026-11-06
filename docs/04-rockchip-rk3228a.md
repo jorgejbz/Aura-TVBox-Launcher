@@ -62,6 +62,11 @@ botones importados, RAM y almacenamiento reales en Ajustes, imagen a 1920×1080,
 escuchando, ningún paquete del malware. YouTube reproduce con `OMX.rk.video_decoder.vp9`. *Cerrar ADB* cierra el puerto
 medido desde otra PC y *Abrir ADB* lo reabre. El actualizador instaló una versión real desde GitHub sobre una de prueba.
 
+## Interruptor de ADB en otros firmwares
+En la caja HiSilicon (Android 9) *Cerrar ADB* detiene `adbd` y *Abrir ADB* lo recupera en el puerto 3222. Ese firmware fija
+el puerto al arrancar (`init.bigfish.rc`). Comprueba el estado en Aura › Sistema después de reiniciar. Android 9 mata lo
+que lanzó `adbd` al detenerlo: un guion de seguridad iniciado por ADB no sobrevive para reabrirlo.
+
 ## Cómo revertir
 Una partición entera: `adb root`, `adb remount` o `blockdev --setrw`, y `dd` del `.img` del respaldo. Los parches de
 Ajustes: borrar `/system/etc/aura/bind/` y reiniciar.
