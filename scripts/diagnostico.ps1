@@ -91,7 +91,7 @@ Out-Line "- RAM (kernel): $([math]::Round($memKb/1MB,2)) GB $memArg · el firmwa
 if ($id['ro.memory.size'] -match '^(\d+)G' -and [double]$matches[1] -gt ($memKb/1MB + 0.3)) { Alerta "RAM falsificada: anuncia $($id['ro.memory.size']) y hay $([math]::Round($memKb/1MB,1)) GB." }
 
 $dfTotal = 0; $dfFree = 0
-foreach ($l in $sec['DF']) { $f = $l -split '\s+'; if ($f.Count -ge 4) { $dfTotal = [long]$f[1]; $dfFree = [long]$f[3] } }
+foreach ($l in $sec['DF']) { $f = $l -split '\s+'; if ($f.Count -ge 4 -and $f[1] -match '^\d+$') { $dfTotal = [long]$f[1]; $dfFree = [long]$f[3] } }
 Out-Line "- Almacenamiento para apps (kernel): $([math]::Round($dfTotal/1MB,2)) GB, libres $([math]::Round($dfFree/1MB,2)) GB · flash anunciada: $($id['ro.flash.size'])"
 foreach ($l in $sec['DISKSTATS']) {
     if ($l -match 'Data-Free:\s+(\d+)K\s*/\s*(\d+)K') {

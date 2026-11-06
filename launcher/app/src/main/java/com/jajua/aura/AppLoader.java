@@ -22,6 +22,10 @@ import java.util.Map;
 
 /** Reads launchable apps from PackageManager. Runs off the main thread. */
 final class AppLoader {
+    /** System components on some firmwares whose launcher icons only duplicate the "Archivos" tile. */
+    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList(
+            "com.android.documentsui", "com.android.providers.downloads.ui"));
+
     private AppLoader() {}
 
     static List<Entry> load(Context context) {
@@ -35,7 +39,7 @@ final class AppLoader {
             Intent query = new Intent(Intent.ACTION_MAIN).addCategory(cat);
             for (ResolveInfo ri : pm.queryIntentActivities(query, 0)) {
                 String pkg = ri.activityInfo.packageName;
-                if (pkg.equals(self) || byPackage.containsKey(pkg)) continue;
+                if (pkg.equals(self) || HIDDEN.contains(pkg) || byPackage.containsKey(pkg)) continue;
                 byPackage.put(pkg, ri);
                 category.put(pkg, cat);
             }

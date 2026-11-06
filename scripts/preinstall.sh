@@ -11,6 +11,21 @@ mylog() {
     log -p i -t "preinstall" "$@"
 }
 
+# Runs on every boot, after PackageManager has verified the untouched APKs in /system.
+# /system/etc/aura/bind/priv-app@Foo@Foo.apk is mounted over /system/priv-app/Foo/Foo.apk: firmware
+# screens that show fake data are patched without their vendor signature (see patch_settings.py).
+# If anything fails the original stays in place: the box still boots, showing the old numbers.
+for f in /system/etc/aura/bind/*; do
+    [ -f "$f" ] || continue
+    target=/system/$(basename "$f" | tr '@' '/')
+    [ -f "$target" ] || continue
+    mylog "bind $target: $(mount -o bind "$f" "$target" 2>&1 && echo ok)"
+done
+# Apps already running keep the old code; a plain kill does not leave them in the "stopped" state.
+for p in com.android.settings com.android.tv.settings; do
+    pid=$(pidof "$p") && kill $pid
+done
+
 [ -e $MARK ] && exit 0
 mylog "first boot after reset: installing apps from $PKGS"
 

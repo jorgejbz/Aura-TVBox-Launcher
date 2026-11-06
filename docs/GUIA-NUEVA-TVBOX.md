@@ -73,8 +73,16 @@ Copia las apps tal como están instaladas (incluidas las divididas), las deja en
 `scripts/preinstall.sh` (soporta APK divididos) y Aura en `/system/priv-app`. Se detiene si el firmware no tiene
 el mecanismo de preinstalación. Reinicia y, si quieres, prueba un formateo real.
 
+También instala `scripts/bootanimation.zip` en `/system/media`. Opcionales: `-Idioma es-MX`,
+`-ZonaHoraria America/Mexico_City`, `-Overscan 100`, `-Bind <carpeta>` (ver `docs/04`).
+
 No sobrevive a un formateo (normal): cuentas (Google, Premium de AirScreen), Wi-Fi, datos dentro de cada app.
 
 ## 7. Cerrar
 - Nunca usar "Actualización del sistema"/"Local update" del fabricante: reinstala el firmware original.
-- Si `ro.adb.secure` está vacío, ADB por red no pide permiso: apaga la Depuración USB al terminar.
+- Si `ro.adb.secure` está vacío, ADB por red no pide permiso: ciérralo en Aura › Sistema › *Cerrar ADB* y comprueba
+  el estado. Apagar la Depuración USB no cerró el puerto en la caja Rockchip. Un formateo vuelve a abrirlo.
+
+## Si `diagnostico.ps1` no alerta, no des la caja por limpia
+Compara también lo que muestra la pantalla de Ajustes (Almacenamiento y Memoria) con el kernel: en la caja Rockchip
+las apps de Ajustes fingían 32 GB y 4 GB aunque el resto del sistema ya diera los datos reales (`docs/04`).

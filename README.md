@@ -1,4 +1,4 @@
-# Aura TV Box Launcher · v1.0
+# Aura TV Box Launcher · v1.1
 
 Convierte una TV Box Android genérica en un equipo limpio, honesto y minimalista:
 
@@ -8,7 +8,8 @@ Convierte una TV Box Android genérica en un equipo limpio, honesto y minimalist
 
 Probado en una caja HiSilicon Hi3798MV300H que se vendía como "Android 11.1, 4 GB/32 GB" y era Android 9 con
 1 GB/3,2 GB, un proxy residencial, una puerta trasera root y una cadena de instaladores ocultos
-(historial en `docs/01`–`03`).
+(historial en `docs/01`–`03`), y en una Rockchip RK3228A que decía "Android 11.1, 4 GB/32 GB" y era Android 7.1 con
+1 GB/5,4 GB y otro proxy residencial (`docs/04`).
 
 ---
 
@@ -86,12 +87,15 @@ Edita `scripts/aura-defaults.properties` (favoritas y botones) e instala antes t
 ```powershell
 .\scripts\fabrica.ps1 -Serial <IP_DE_TU_TVBOX>:<PUERTO> -CopiarDeLaCaja com.stremio.one,com.google.android.youtube.tv -Probar
 ```
-Tras un formateo, la caja arrancará en Aura con esas apps. Se detiene sin tocar nada si el firmware no tiene
-mecanismo de preinstalación.
+Tras un formateo, la caja arrancará en Aura con esas apps y la animación de arranque de Aura. Se detiene sin tocar
+nada si el firmware no tiene mecanismo de preinstalación. Opcionales que también sobreviven al formateo:
+`-Idioma es-MX`, `-ZonaHoraria America/Mexico_City`, `-Overscan 100` (imagen a pantalla completa) y `-Bind <carpeta>`
+(pantallas del firmware parcheadas, ver `docs/04`).
 
 ### 7. Cerrar
 - No uses "Actualización del sistema" / "Local update" del fabricante: reinstala el firmware original.
-- Si el ADB por red no pide permiso, apaga la Depuración USB al terminar.
+- Si el ADB por red no pide permiso, ciérralo en Aura › **Sistema** › *Cerrar ADB*. Apagar la Depuración USB no basta
+  en todos los firmwares. Un formateo vuelve a abrirlo.
 
 ---
 
@@ -100,7 +104,11 @@ Launcher Android nativo: Java, sin dependencias, Android 5.0+, ~60 KB.
 - Favoritas grandes, accesos (Archivos, Ajustes, Red, Botones, Sistema) y todas las apps sin repetidos.
 - Fondo que toma el color de la app enfocada; foco siempre visible; navegación sólo con flechas, OK, Atrás e Inicio.
 - **Botones**: asigna apps a botones del control (servicio de accesibilidad que sólo filtra teclas, no lee la pantalla).
-- **Sistema**: datos reales leídos del kernel, no del framework (que algunos firmwares falsifican).
+- **Sistema**: datos reales leídos del kernel, no del framework (que algunos firmwares falsifican), y estado real del
+  ADB por red con un botón para cerrarlo o abrirlo.
+- **Actualizaciones**: *Buscar actualizaciones* en Sistema, y *Actualizaciones del sistema* en Ajustes cuando Aura es app
+  de sistema. Sólo consulta GitHub cuando lo pides y no envía datos de tu caja. Acepta sólo un APK con la firma de Aura y
+  versión mayor, y Android pide confirmar antes de instalar.
 - Como app de sistema (`/system/priv-app`) recupera favoritas y botones desde `/system/etc/aura/defaults.properties`.
 
 Compilar: `cd launcher; .\gradlew.bat assembleRelease`.
@@ -110,8 +118,10 @@ Compilar: `cd launcher; .\gradlew.bat assembleRelease`.
 |---|---|
 | `diagnostico.ps1` + `diag-remoto.sh` | Encuentra la caja, ADB real vs falso, datos reales vs anunciados, malware/proxy/puertas traseras. |
 | `respaldar.ps1` | Copia las particiones críticas con SHA-256. |
-| `fabrica.ps1` + `preinstall.sh` | Aura como app de sistema y tus apps en `/system/preinstall` (incluye APK divididos). |
+| `fabrica.ps1` + `preinstall.sh` | Aura como app de sistema, tus apps en `/system/preinstall` (incluye APK divididos), animación de arranque y ajustes. |
+| `bootanimation.py` | Genera `bootanimation.zip`, la animación de arranque de Aura. |
 | `patch_javacore.py` | Quita la falsificación de almacenamiento de `libjavacore.so` (verifica los bytes; aborta si el build es otro). |
+| `patch_settings.py` | Quita los 4 GB / 32 GB falsos de `Settings` y `TvSettings` en firmwares Rockchip conocidos (ver `docs/04`). |
 | `control-tv.ps1` | Instala el puente HDMI-CEC para usar **el control de la TV** ([cec-bridge/README.md](cec-bridge/README.md)). Probado con Samsung UN50TU7000 + control BN59-01259B. |
 | `capturar.ps1`, `ui-estado.ps1` | Capturas y estado de pantalla para pruebas. |
 
@@ -120,7 +130,7 @@ Compilar: `cd launcher; .\gradlew.bat assembleRelease`.
 |---|---|
 | `llave-firma/` | **Llave de firma de Aura.** Sólo el dueño puede firmar actualizaciones que se instalen encima. Haz copia. |
 | `apks/fabrica/` | Copia exacta de las apps usadas (para la siguiente caja). |
-| `build/` | `Aura.apk` firmado (versión 1.0). |
+| `build/` | `Aura.apk` firmado. |
 | `logs/` | Informes de diagnóstico (contienen IP/MAC de tu red). |
 
 ## Licencia y actualizaciones
