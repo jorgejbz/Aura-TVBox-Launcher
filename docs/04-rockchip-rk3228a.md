@@ -64,7 +64,7 @@ medido desde otra PC y *Abrir ADB* lo reabre. El actualizador instaló una versi
 
 ## Interruptor de ADB en otros firmwares
 En la caja HiSilicon (Android 9) *Cerrar ADB* detiene `adbd` y *Abrir ADB* lo recupera en el puerto 3222. Ese firmware fija
-el puerto al arrancar (`init.bigfish.rc`). Comprueba el estado en Aura › Sistema después de reiniciar. Android 9 mata lo
+el puerto al arrancar (`init.bigfish.rc`). Aun así, cerrado y tras reiniciar, sigue cerrado (medido desde la PC). Android 9 mata lo
 que lanzó `adbd` al detenerlo: un guion de seguridad iniciado por ADB no sobrevive para reabrirlo.
 
 ## Cómo revertir

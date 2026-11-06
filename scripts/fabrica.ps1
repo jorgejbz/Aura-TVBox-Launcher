@@ -6,7 +6,9 @@
 # Haz antes .\respaldar.ps1.
 #
 # Uso: .\fabrica.ps1 -Serial <IP_TVBOX>:3222 [-Apks ..\apks\fabrica] [-Probar]
+#      [-Bind carpeta] [-Idioma es-MX] [-ZonaHoraria America/Mexico_City] [-Overscan 100]
 #  -Apks: carpeta con las apps (puedes llenarla con -CopiarDeLaCaja paquete1,paquete2 ...)
+# BORRA el contenido de /system/preinstall: para sólo actualizar Aura en una caja ya lista, ver la guía.
 param(
     [Parameter(Mandatory)] [string] $Serial,
     [string] $Apks = (Join-Path $PSScriptRoot '..\apks\fabrica'),
@@ -72,7 +74,7 @@ adb -s $Serial push (Join-Path $PSScriptRoot 'preinstall.sh') /data/local/tmp/pr
 Sh 'cat /data/local/tmp/preinstall.sh > /system/bin/preinstall.sh' | Out-Null
 adb -s $Serial push (Join-Path $PSScriptRoot 'aura-defaults.properties') /system/etc/aura/defaults.properties | Out-Null
 # Patched firmware screens (see patch_settings.py); preinstall.sh mounts them after each boot.
-if (Test-Path $Bind) {
+if ($Bind -and (Test-Path $Bind)) {
     Sh 'mkdir -p /system/etc/aura/bind' | Out-Null
     Get-ChildItem $Bind -File | ForEach-Object { adb -s $Serial push $_.FullName /system/etc/aura/bind/ | Select-Object -Last 1 }
 }
