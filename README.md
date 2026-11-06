@@ -6,10 +6,11 @@ Convierte una TV Box Android genérica en un equipo limpio, honesto y minimalist
 - **Scripts** para detectar firmware que miente (versión, RAM, almacenamiento), ADB falso, malware preinstalado,
   proxys y puertas traseras; respaldar; limpiar; y dejar tu configuración como "de fábrica" (sobrevive a un formateo).
 
-Probado en una caja HiSilicon Hi3798MV300H que se vendía como "Android 11.1, 4 GB/32 GB" y era Android 9 con
-1 GB/3,2 GB, un proxy residencial, una puerta trasera root y una cadena de instaladores ocultos
-(historial en `docs/01`–`03`), y en una Rockchip RK3228A que decía "Android 11.1, 4 GB/32 GB" y era Android 7.1 con
-1 GB/5,4 GB y otro proxy residencial (`docs/04`).
+## Probado en
+| Caja (chip real) | Lo que decía | Lo que era en realidad | Qué traía | Historial |
+|---|---|---|---|---|
+| HiSilicon Hi3798MV300H | Android 11.1, 4 GB de RAM, 32 GB | **Android 9**, 1 GB, 3,2 GB para apps | Proxy residencial, puerta trasera root e instaladores ocultos | `docs/01`–`03` |
+| Rockchip RK3228A | Android 11.1, 4 GB de RAM, 32 GB | **Android 7.1**, 1 GB, 5,4 GB para apps | Proxy residencial, servicio root en la red e instaladores | `docs/04` |
 
 ![Pantalla de inicio de Aura](docs/capturas/aura-inicio.png)
 
