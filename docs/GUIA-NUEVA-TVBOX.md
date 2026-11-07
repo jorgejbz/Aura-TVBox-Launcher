@@ -1,7 +1,8 @@
 # Guía: preparar una TV Box nueva
 
-Receta completa, sacada de dos cajas reales: HiSilicon Hi3798MV300H con Android 9 (`docs/01`–`03`) y Rockchip RK3228A
-con Android 7.1 (`docs/04`). Las dos se vendían como "Android 11.1, 4 GB/32 GB" y traían un proxy residencial.
+Receta completa, sacada de tres cajas reales: una HiSilicon Hi3798MV300H con Android 9 (`docs/01`–`03`) y dos Rockchip
+RK3228A con Android 7.1 y el mismo firmware (`docs/04`). Todas se vendían como "Android 11.1, 4 GB/32 GB" y traían un
+proxy residencial.
 
 **Tres reglas:**
 1. **No creas lo que dice la caja**, ni lo que dicen sus pantallas: compara siempre con el kernel y con el hardware.
@@ -28,7 +29,7 @@ con Android 7.1 (`docs/04`). Las dos se vendían como "Android 11.1, 4 GB/32 GB"
 ## 1. Preparar la PC (Windows)
 - Android Studio: trae `adb`, y en `build-tools` `aapt2`, `apksigner`, `zipalign` y `dexdump`.
 - `JAVA_HOME` de usuario → `C:\Program Files\Android\Android Studio\jbr`.
-- `pip install capstone pyelftools pillow`, para `patch_javacore.py` y `bootanimation.py`.
+- `pip install capstone pyelftools pillow`, para `patch_javacore.py`, `patch_audiopolicy.py` y `bootanimation.py`.
 - `build\Aura.apk`: compílalo (`cd launcher; .\gradlew.bat assembleRelease`) o bájalo de
   [Releases](https://github.com/jorgejbz/Aura-TVBox-Launcher/releases/latest/download/Aura.apk) y guárdalo ahí.
   Sólo el dueño de `llave-firma/` puede firmar versiones que se instalen encima de un Aura oficial.
@@ -106,8 +107,12 @@ Malware ya identificado:
 | `com.android.cts.service` | HiSilicon | Instalador silencioso |
 | `com.ztv.service` | Rockchip | Procesos `android.daemon` persistentes |
 | `com.android.tvh`, `com.tv.napp`, `com.android.appstore` | Rockchip | Descargados o preinstalados |
-| `com.android.gms.service`, `com.charon.rocketfly`, `com.android.network*` | HiSilicon | Descargados |
+| `com.android.gms.service`, `com.charon.rocketfly`, `com.android.network*` | Las dos | Descargados |
+| `com.android.network.iotvads` | Rockchip | Se instaló solo durante el respaldo y conectó al puerto 8048 |
 | `/system/bin/cmd_root` | HiSilicon | Puerta trasera root en el puerto 40000 |
+
+Revisa también `/sdcard/Download/app/`: ahí el malware deja en cola lo próximo que va a instalar (se vieron
+`AdPreController` y `CleanUp`). Cada caja puede traer paquetes nuevos: repite `pm list packages -3` tras cada paso.
 
 Compara además **lo que muestran las pantallas** con el kernel. Abre Ajustes › Almacenamiento y Memoria, y compara con:
 ```powershell
@@ -165,6 +170,7 @@ Si el chip Wi-Fi deja de aparecer tras muchos reinicios (`mmc2: error -110 … S
 | `libjavacore.so` (lo que ven las apps) | `StatFs` ≠ `df` | `patch_javacore.py`; instala con copia + `mv` |
 | `Settings` y `TvSettings` | Pantallas con 4 GB, 32 GB | `patch_settings.py` y `-Bind` (abajo) |
 | `/private/ramrom.config` (HiSilicon) | Ajustes lee "RAM+ROM" y, si falta, inventa 4 GB/32 GB | Escríbelo: `1+3.2` |
+| `libaudiopolicymanagerdefault.so` (Rockchip) | El HDMI no declara canales; YouTube supone 8 y los videos con audio 5.1 van a tirones | `fabrica.ps1 -ParcheAudio` (abajo) |
 | Kernel, `/proc/meminfo` | Redondeo pequeño (~27 MB) | Se deja: exige recompilar el kernel |
 
 Los parches comprueban cada byte y **abortan sin escribir** si el firmware es otro.
@@ -203,6 +209,18 @@ Select-String 'const-wide.*(0000000800000000|0000000100000000)|const-wide/high16
 Añade esos offsets a `BUILDS` en `patch_settings.py`: son posiciones de archivo como las imprime `dexdump`. Verifica
 en pantalla cada dato, sin cierres en `logcat -d -b crash` ni `VerifyError`.
 
+### Audio 5.1 en YouTube (Rockchip)
+Síntoma: los videos con audio 5.1 se cortan, con círculo de carga y pocos fotogramas; los estéreo van bien. Compruébalo:
+```powershell
+adb -s <SERIE> shell "dumpsys media.audio_policy | sed -n '/Available output devices/,/Available input/p'"   # Profiles: vacío
+adb -s <SERIE> shell "dumpsys media.audio_flinger | grep -E '^ +[0-9]+ +yes'"   # pista de YouTube con canales 0000003F
+```
+El sistema de audio de Rockchip añade HDMI, SPDIF y altavoz sin lista de canales, y YouTube lo toma como 8 canales.
+`audio_policy.conf` **no** lo arregla: ni las máscaras de la salida `hdmi` ni una sección `devices` llegan a esos
+dispositivos. `fabrica.ps1 -ParcheAudio` aplica `patch_audiopolicy.py`, que hace que un dispositivo sin canales informe
+estéreo, lo único que entrega el HAL. Comprueba los bytes, no escribe nada si el firmware es otro y avisa si ya estaba
+aplicado. Para revertirlo, restaura la biblioteca desde `system.img`.
+
 ## 7. Quitar apps del fabricante
 Borra de `/system` lo que no se use, **reiniciando y probando después**. Si dudas, déjala.
 | Quitar | Conservar |
@@ -223,11 +241,12 @@ Borra de `/system` lo que no se use, **reiniciando y probando después**. Si dud
    temporal del paso 5 (`pm uninstall com.jajua.aura`), para que quede sólo la copia de sistema.
 2. Lanza:
    ```powershell
-   .\scripts\fabrica.ps1 -Serial <IP>:<PUERTO> -Apks apks\fabrica -Bind apks\bind -Idioma es-MX -ZonaHoraria America/Mexico_City -Overscan 100
+   .\scripts\fabrica.ps1 -Serial <IP>:<PUERTO> -Apks apks\fabrica -Bind apks\bind -ParcheAudio -Idioma es-MX -ZonaHoraria America/Mexico_City -Overscan 100
    ```
    Pone Aura en `/system/priv-app`, tus apps en `/system/preinstall` (**borra lo que hubiera ahí**), `preinstall.sh`, la
    animación de arranque y los ajustes. `-Probar` instala las apps sin esperar a un formateo. Quita las opciones que no
-   apliquen: `-Overscan` sólo se ha probado en Rockchip. Se detiene si el firmware no tiene mecanismo de preinstalación.
+   apliquen: `-Overscan` y `-ParcheAudio` sólo se han probado en Rockchip. Se detiene si el firmware no tiene mecanismo
+   de preinstalación.
 3. Reinicia. Las favoritas y botones de fábrica se importan en un inicio limpio: compruébalos tras el formateo del
    paso 10.
 
@@ -251,7 +270,14 @@ Si `dsp_x`/`dsp_y` son menores que la salida (1845×1038 en 1080p), hay overscan
 `-Overscan 100`. Si la TV corta el borde, ponla en *Ajuste de pantalla* (*Screen Fit*).
 
 **Video.** Reproduce algo y busca el decodificador de hardware: `logcat -d | grep -i omx`. Debe salir un `OMX.<chip>...`.
-Las apps de prueba o los servicios de video mal borrados se notan aquí.
+Las apps de prueba o los servicios de video mal borrados se notan aquí. Prueba también un video con audio **5.1** (por
+ejemplo *Big Buck Bunny 60fps 4K*, `aqz-KE-bpKQ`): uno estéreo puede ir perfecto aunque falle el 5.1. Mide los
+fotogramas reales con el nombre exacto de la capa:
+```powershell
+adb -s <SERIE> shell "dumpsys SurfaceFlinger --latency 'SurfaceView - com.google.android.youtube.tv/com.google.android.apps.youtube.tv.activity.MainActivity'"
+```
+Son 127 tiempos en nanosegundos: deben avanzar 1/fps cada vez, sin huecos de segundos. El número que sale junto al
+nombre de la capa en `dumpsys SurfaceFlinger` **no** son los fps.
 
 **Control remoto.** No todos los botones existen en todos los controles:
 ```powershell
@@ -281,6 +307,7 @@ Tarda varios minutos, y las apps terminan al aparecer `/data/local/symbol_thirdp
 - [ ] Parches montados: `grep Settings /proc/mounts` y `logcat -d -s preinstall`.
 - [ ] Sin cierres: `logcat -d -b crash`.
 - [ ] Red abre el panel lateral, y Actualizaciones llega a Aura y responde.
+- [ ] Un video con audio 5.1 se reproduce fluido, con su pista en `00000003` (paso 6, "Audio 5.1").
 - [ ] Idioma, hora e imagen correctos.
 
 ## 11. Cerrar
@@ -318,9 +345,13 @@ No hagas `pm uninstall com.jajua.aura` si quieres conservar los datos.
 | `mount: Device or resource busy` | Usa `adb remount` |
 | Ajuste de `settings put` perdido al reiniciar | Espera unos segundos antes de reiniciar |
 | Botones de Aura sin efecto | `settings get secure enabled_accessibility_services`: añade el de Aura con `:` **sin quitar** los demás, como `HiRMService` |
+| Botones sin efecto tras probar por ADB | `am force-stop com.jajua.aura` hace que Android quite su servicio de accesibilidad, y Aura no lo reactiva solo. No lo uses; si pasó, ver la fila anterior y `accessibility_enabled 1` |
+| Videos con audio 5.1 a tirones | Ver paso 6, "Audio 5.1 en YouTube" |
+| `netstat -tnp` da `Segmentation fault` | Fallo esporádico de toybox: repite el comando |
+| Reloj en 1970 al encender | La caja no tiene reloj con batería: se ajusta solo en ~90 s, al llegar a internet |
 | Dos apps de Ajustes o selector al abrirlos | Aura usa la de TV; no borres `Settings`, puede tener receptores de HDMI |
 | Apps se abren con un aviso de permisos | Normal la primera vez: acéptalo con el control |
-| Un cierre de Play Store al arrancar tras formatear | Se vio una vez y no se repitió; revisa `logcat -d -b crash` si persiste |
+| Un cierre de Play Store al arrancar tras formatear | Es su autoactualización: Android 7 le niega la sesión de instalación (`INTENT_PACKAGE_INSTALL_COMMIT`) y sigue con la versión de `/system`. Se repite tras cada formateo en Rockchip y no afecta a tus apps |
 | Wi-Fi perdido tras formatear | Normal: se reconecta desde la TV, en Aura › Red |
 
 No sobreviven a un formateo, y es normal: cuentas (Google, Premium de AirScreen), Wi-Fi y datos dentro de cada app.

@@ -104,7 +104,8 @@ Edita `scripts/aura-defaults.properties` (favoritas y botones), y luego:
 ```
 Instala Aura como app de sistema, tus apps (**borra lo que hubiera en `/system/preinstall`**) y el logo de arranque. Se
 detiene sin tocar nada si el firmware no tiene mecanismo de preinstalación. Según la caja, añade `-Overscan 100` (imagen
-completa, probado en Rockchip) y `-Bind <carpeta>` (Ajustes parcheado).
+completa, probado en Rockchip), `-Bind <carpeta>` (Ajustes parcheado) y `-ParcheAudio` (YouTube fluido con audio 5.1 en
+Rockchip).
 
 ### 8. Revisar imagen, video y control
 Comprueba que la imagen ocupa toda la pantalla, que el video usa el decodificador de hardware y qué botones declara tu
@@ -145,6 +146,7 @@ Compilar: `cd launcher; .\gradlew.bat assembleRelease`.
 | `bootanimation.py` | Genera `bootanimation.zip`, la animación de arranque de Aura. |
 | `patch_javacore.py` | Quita la falsificación de almacenamiento de `libjavacore.so` (verifica los bytes; aborta si el build es otro). |
 | `patch_settings.py` | Quita los 4 GB / 32 GB falsos de `Settings` y `TvSettings` en firmwares Rockchip conocidos (ver `docs/04`). |
+| `patch_audiopolicy.py` | Hace que el HDMI de Rockchip informe estéreo, para que YouTube no elija audio 5.1 y vaya a tirones (ver `docs/04`). |
 | `control-tv.ps1` | Instala el puente HDMI-CEC para usar **el control de la TV** ([cec-bridge/README.md](cec-bridge/README.md)). Probado con Samsung UN50TU7000 + control BN59-01259B. |
 | `capturar.ps1`, `ui-estado.ps1` | Capturas y estado de pantalla para pruebas. |
 

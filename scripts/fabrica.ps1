@@ -6,7 +6,7 @@
 # Haz antes .\respaldar.ps1.
 #
 # Uso: .\fabrica.ps1 -Serial <IP_TVBOX>:3222 [-Apks ..\apks\fabrica] [-Probar]
-#      [-Bind carpeta] [-Idioma es-MX] [-ZonaHoraria America/Mexico_City] [-Overscan 100]
+#      [-Bind carpeta] [-ParcheAudio] [-Idioma es-MX] [-ZonaHoraria America/Mexico_City] [-Overscan 100]
 #  -Apks: carpeta con las apps (puedes llenarla con -CopiarDeLaCaja paquete1,paquete2 ...)
 # BORRA el contenido de /system/preinstall: para sólo actualizar Aura en una caja ya lista, ver la guía.
 param(
@@ -15,6 +15,8 @@ param(
     [string[]] $CopiarDeLaCaja = @(),
     # Carpeta opcional con APK parcheados, nombrados priv-app@Carpeta@App.apk (ver patch_settings.py).
     [string] $Bind = '',
+    # Rockchip RK322x: el HDMI informa estéreo y YouTube deja de elegir audio 5.1 (ver patch_audiopolicy.py).
+    [switch] $ParcheAudio,
     # Animación de arranque (''  para conservar la del firmware).
     [string] $Animacion = (Join-Path $PSScriptRoot 'bootanimation.zip'),
     # Se escriben en build.prop, así que sobreviven a un formateo. Vacío = no tocar.
@@ -77,6 +79,25 @@ adb -s $Serial push (Join-Path $PSScriptRoot 'aura-defaults.properties') /system
 if ($Bind -and (Test-Path $Bind)) {
     Sh 'mkdir -p /system/etc/aura/bind' | Out-Null
     Get-ChildItem $Bind -File | ForEach-Object { adb -s $Serial push $_.FullName /system/etc/aura/bind/ | Select-Object -Last 1 }
+}
+# The firmware adds the HDMI device without a channel list; YouTube reads that as 8 channels and stutters on 5.1.
+if ($ParcheAudio) {
+    $lib = '/system/lib/libaudiopolicymanagerdefault.so'
+    $tmp = Join-Path $env:TEMP 'aura-audiopolicy'
+    New-Item -ItemType Directory -Force $tmp | Out-Null
+    adb -s $Serial pull $lib (Join-Path $tmp 'original.so') | Out-Null
+    python (Join-Path $PSScriptRoot 'patch_audiopolicy.py') (Join-Path $tmp 'original.so') (Join-Path $tmp 'parcheado.so') | Select-Object -Last 1
+    switch ($LASTEXITCODE) {
+        0 {
+            adb -s $Serial push (Join-Path $tmp 'parcheado.so') /data/local/tmp/audiopolicy.so | Out-Null
+            Sh ("cp /data/local/tmp/audiopolicy.so $lib.new && chown root:root $lib.new && chmod 644 $lib.new && " +
+                "chcon u:object_r:system_file:s0 $lib.new && mv $lib.new $lib; rm -f /data/local/tmp/audiopolicy.so; sync") | Out-Null
+            'Audio: biblioteca parcheada (el HDMI informa estéreo).'
+        }
+        3 { 'Audio: la biblioteca ya estaba parcheada.' }
+        default { Write-Warning 'Audio: firmware desconocido, no se parcheó nada (ver docs/04).' }
+    }
+    Remove-Item -Recurse -Force $tmp
 }
 adb -s $Serial push $aura.FullName /data/local/tmp/Aura.apk | Out-Null
 Sh 'cp /data/local/tmp/Aura.apk /system/priv-app/Aura/Aura.apk.new && mv /system/priv-app/Aura/Aura.apk.new /system/priv-app/Aura/Aura.apk' | Out-Null

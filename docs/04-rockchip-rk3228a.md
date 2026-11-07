@@ -67,6 +67,30 @@ En la caja HiSilicon (Android 9) *Cerrar ADB* detiene `adbd` y *Abrir ADB* lo re
 el puerto al arrancar (`init.bigfish.rc`). Aun así, cerrado y tras reiniciar, sigue cerrado (medido desde la PC). Android 9 mata lo
 que lanzó `adbd` al detenerlo: un guion de seguridad iniciado por ADB no sobrevive para reabrirlo.
 
+## Otra caja con el mismo firmware (noviembre de 2026)
+Una segunda RK3228A (build `TVBOX-20260608-RK28`) traía el mismo firmware: antes de limpiarla, su `system.img` difería
+en 183 bytes de la primera, y `boot`, `kernel`, `uboot`, `recovery`, `libjavacore.so` y los parches de Ajustes eran
+idénticos. Además del malware de la tabla, tenía `com.android.network`, que consultaba su IP pública y bajó
+`com.android.network.iotvads` durante el respaldo (conectó al puerto 8048), y una cola de instalación en
+`/sdcard/Download/app` con `com.android.gms.service` y `com.charon.rocketfly`. La limpieza y un formateo real pasaron igual
+que en la primera.
+
+## Audio 5.1 en YouTube
+Los videos con audio 5.1 se reproducían a 2–11 fotogramas por segundo, con el audio cortado y el círculo de carga; los
+estéreo iban bien. No eran los fps, el decodificador ni la red.
+- `AudioPolicyManager`, modificado por Rockchip, añade HDMI, SPDIF y altavoz sin perfiles: `getChannelCounts()` vuelve
+  vacío. YouTube (Cobalt, `AudioOutputManager.getOutputDeviceInfo`) toma la lista vacía como 8 canales y elige 5.1; el
+  HAL sólo entrega estéreo.
+- `audio_policy.conf` no sirve: cambiar las máscaras de la salida `hdmi` o declarar `devices` no llega a esos
+  dispositivos.
+- Prueba de la causa: con `ro.product.model=MIBOX3`, modelo para el que Cobalt fuerza estéreo en Android < 8.1, los cuatro
+  videos que fallaban fueron fluidos. Se revirtió enseguida: no es una corrección, sería otra falsificación.
+- Corrección: `patch_audiopolicy.py` (`fabrica.ps1 -ParcheAudio`) reescribe las copias de `AudioPort::toAudioPort` en
+  `libaudiopolicymanagerdefault.so` en menos espacio, con el mismo resultado, y añade un caso: un puerto sin canales
+  informa estéreo (`0x3`). Cambian 84 bytes. Con él, 7 videos, 5.1 y estéreo, de 24 a 60 fps, se reprodujeron con el
+  audio a velocidad normal, sin cortes ni huecos.
+
 ## Cómo revertir
 Una partición entera: `adb root`, `adb remount` o `blockdev --setrw`, y `dd` del `.img` del respaldo. Los parches de
-Ajustes: borrar `/system/etc/aura/bind/` y reiniciar.
+Ajustes: borrar `/system/etc/aura/bind/` y reiniciar. El de audio: copiar `libaudiopolicymanagerdefault.so` del respaldo
+con copia + `mv` y reiniciar.
