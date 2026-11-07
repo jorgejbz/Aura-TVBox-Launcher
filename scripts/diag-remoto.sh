@@ -42,7 +42,7 @@ if pm list packages -f -i -U 2>&1 | grep -q '^package:'; then
 else
     pm list packages -f -i | while read -r line; do
         name=${line%% *}; name=${name##*=}
-        uid=$(dumpsys package "$name" | sed -n 's/.*userId=\([0-9]*\).*/\1/p' | head -1)
+        uid=$(dumpsys package "$name" | sed -n 's/.*userId=\([0-9]*\).*/\1/p'); uid=${uid%%[!0-9]*}
         echo "$line uid:$uid"
     done
 fi
