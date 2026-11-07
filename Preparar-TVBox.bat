@@ -9,8 +9,9 @@ echo  Preparar TV Box con Aura
 echo  -----------------------
 echo  Conecta la caja por cable de red y activa la Depuracion USB (guia, paso 2).
 echo.
-set "IP="
-set /p "IP=IP de la TV Box (Enter para buscarla en la red): "
+set "IP=%AURA_IP%"
+if not defined IP set /p "IP=IP de la TV Box (Enter para buscarla en la red): "
+if defined AURA_IP echo  IP de la TV Box: %IP%
 if not defined AURA_SIN_CLAUDE (
   where claude >nul 2>nul && (
     echo  Abriendo Claude Code como vigilante en otra ventana...
