@@ -26,6 +26,11 @@ proxy residencial.
 
 **Antes de borrar nada, avisa de lo que se va a hacer y consigue autorización del dueño de la caja.**
 
+**Atajo:** `Preparar-TVBox.bat` hace los pasos 3 a 10 solo si el firmware tiene perfil en `scripts/perfiles/`. Con un
+firmware nuevo se detiene después del respaldo y hay que seguir esta guía a mano. Al terminar, guarda lo aprendido como
+perfil nuevo: qué es malware, qué borrar de `/system`, qué valores de `build.prop` corregir y qué parches aplicar.
+Los registros de cada caja quedan en `logs\cajas\<ID>\`.
+
 ## 1. Preparar la PC (Windows)
 - Android Studio: trae `adb`, y en `build-tools` `aapt2`, `apksigner`, `zipalign` y `dexdump`.
 - `JAVA_HOME` de usuario → `C:\Program Files\Android\Android Studio\jbr`.
@@ -348,6 +353,8 @@ No hagas `pm uninstall com.jajua.aura` si quieres conservar los datos.
 | Botones sin efecto tras probar por ADB | `am force-stop com.jajua.aura` hace que Android quite su servicio de accesibilidad, y Aura no lo reactiva solo. No lo uses; si pasó, ver la fila anterior y `accessibility_enabled 1` |
 | Videos con audio 5.1 a tirones | Ver paso 6, "Audio 5.1 en YouTube" |
 | `netstat -tnp` da `Segmentation fault` | Fallo esporádico de toybox: repite el comando |
+| `tail -1` devuelve todas las líneas | El `tail` de toybox de Android 7 no entiende la forma corta: usa `tail -n 1` |
+| Un `grep "dos palabras"` por `adb shell` desde PowerShell no encuentra nada | PowerShell 5.1 quita las comillas dobles internas: usa comillas simples dentro del comando |
 | Reloj en 1970 al encender | La caja no tiene reloj con batería: se ajusta solo en ~90 s, al llegar a internet |
 | Dos apps de Ajustes o selector al abrirlos | Aura usa la de TV; no borres `Settings`, puede tener receptores de HDMI |
 | Apps se abren con un aviso de permisos | Normal la primera vez: acéptalo con el control |

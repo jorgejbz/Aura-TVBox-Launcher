@@ -36,6 +36,8 @@ QUÉ QUIERO AL FINAL:
 CÓMO TRABAJAR (obligatorio):
 1. Clona el repositorio y lee primero README.md y docs/GUIA-NUEVA-TVBOX.md, completos: es la receta y su orden. Lee
    también docs/03 y docs/04, los casos reales. Mi caja puede ser distinta (otro chip, otros trucos o ninguno).
+   Si mi firmware ya tiene perfil en scripts/perfiles/, usa scripts/preparar.ps1 (lo mismo que Preparar-TVBox.bat), y si
+   se detiene, lee su registro en logs/cajas/<ID>/. Si es nuevo, al terminar crea su perfil con lo aprendido.
 2. Revisa qué herramientas tengo instaladas antes de instalar nada; no reinstales lo que ya funciona.
 3. Ejecuta scripts/diagnostico.ps1 (sólo lectura) y las "Revisiones a mano" de la guía, porque el script no ve todo. Si
    sale "0 paquetes" o la red vacía, el informe no sirve: corrígelo. Compara lo que muestran las pantallas de Ajustes

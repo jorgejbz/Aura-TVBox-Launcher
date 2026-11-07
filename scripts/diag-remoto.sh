@@ -21,7 +21,7 @@ grep -E 'MemTotal|MemAvailable' /proc/meminfo
 tr ' ' '\n' < /proc/cmdline | grep -E '^mem='
 
 echo "##DF"
-df -k /data | tail -1
+df -k /data | tail -n 1
 
 echo "##DISKSTATS"
 dumpsys diskstats | grep -E 'Data-Free'
@@ -34,7 +34,7 @@ wm size
 dumpsys display | grep -o 'supportedModes \[[^]]*\]' | head -1
 
 echo "##HOME"
-cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -1
+cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -n 1
 
 echo "##PKGS"
 if pm list packages -f -i -U 2>&1 | grep -q '^package:'; then

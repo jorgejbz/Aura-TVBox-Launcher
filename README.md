@@ -52,6 +52,21 @@ Después:
 Copia el contenido de **[PROMPT-CLAUDE-CODE.txt](PROMPT-CLAUDE-CODE.txt)**, completa los datos de tu caja y pégalo en
 Claude Code: seguirá esta guía paso a paso, pidiéndote permiso antes de cada cambio importante.
 
+## La forma rápida: `Preparar-TVBox.bat`
+Con la PC preparada (paso 0 de abajo) y la caja conectada por cable con la depuración activada (paso 1), haz doble clic
+en **`Preparar-TVBox.bat`** y escribe la IP de la caja. Recorre la guía entera por etapas: diagnóstico, respaldo
+verificado, limpieza, falsificaciones, `fabrica.ps1`, formateo y verificación final (incluida una prueba de YouTube con
+audio 5.1 y estéreo).
+- **Firmware conocido** (los de `scripts/perfiles/`): casi todo automático. Pide confirmar antes de cada bloque que
+  borra, escribe en `/system` o formatea.
+- **Firmware nuevo:** hace el diagnóstico y el respaldo, que no cambian nada, y se detiene. Sigue la guía a mano;
+  lo aprendido se guarda luego como un perfil nuevo.
+- **Cada caja tiene un ID** sacado de su hardware, por ejemplo `RK3228A-1a2b3c4d`. Todo queda en
+  `logs\cajas\<ID>\`: registro completo, diagnóstico, verificación, ficha y estado. Si algo se detiene, al abrir de
+  nuevo el `.bat` sigue desde esa etapa. `logs\cajas\indice.csv` lista todas las cajas.
+- `scripts\preparar.ps1 -Ip <IP> -Simular` muestra lo que haría sin cambiar nada, y `scripts\verificar.ps1` repite la
+  verificación cuando quieras.
+
 ## Inicio rápido: una TV Box nueva
 
 > Cada caja es distinta. **El diagnóstico decide qué pasos aplican**; no des por cierto lo que dice la caja.
@@ -140,6 +155,8 @@ Compilar: `cd launcher; .\gradlew.bat assembleRelease`.
 ## Scripts
 | Script | Para qué |
 |---|---|
+| `Preparar-TVBox.bat` + `preparar.ps1` | Todo el proceso por etapas, con perfiles por firmware (`scripts/perfiles/`), registro por caja y reanudación. |
+| `verificar.ps1` | La lista de comprobación del paso 10 de la guía, con prueba de YouTube 5.1 y estéreo; deja un informe. |
 | `diagnostico.ps1` + `diag-remoto.sh` | Encuentra la caja, ADB real vs falso, datos reales vs anunciados, malware/proxy/puertas traseras. |
 | `respaldar.ps1` | Copia las particiones críticas con SHA-256. |
 | `fabrica.ps1` + `preinstall.sh` | Aura como app de sistema, tus apps en `/system/preinstall` (incluye APK divididos), animación de arranque y ajustes. |
