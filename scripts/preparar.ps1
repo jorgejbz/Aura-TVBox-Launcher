@@ -399,6 +399,7 @@ function Etapa-formateo {
 }
 
 function Etapa-verificacion {
+    Cambio 'Quitar archivos temporales de la caja' { Sh 'rm -f /data/local/tmp/diag-remoto.sh /data/local/tmp/*.new /data/local/tmp/*.apk' | Out-Null }
     $a = @{ Serial = $script:S; Perfil = $script:Perfil.Archivo; Carpeta = $script:Caja }
     if (-not $Apks) { $a.Apks = Join-Path $root $script:Perfil.Apks } else { $a.Apks = $Apks }
     if (-not $SinYoutube) { $a.Youtube = $true }

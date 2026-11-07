@@ -21,6 +21,15 @@ for f in /system/etc/aura/bind/*; do
     [ -f "$target" ] || continue
     mylog "bind $target: $(mount -o bind "$f" "$target" 2>&1 && echo ok)"
 done
+# Rockchip firmware recreates /data/cifsmanager world-writable (0777) on every boot, and its "cifsmanager" init
+# service runs /data/cifsmanager/cifsmanager.sh as root. With SELinux permissive, any app could plant a script there.
+# Nothing uses it once the vendor file manager is gone: empty it and make it root-only on every boot.
+if [ -d /data/cifsmanager ]; then
+    rm -rf /data/cifsmanager/*
+    chown root:root /data/cifsmanager
+    chmod 0700 /data/cifsmanager
+    mylog "cifsmanager closed: $(ls -ld /data/cifsmanager)"
+fi
 # Apps already running keep the old code; a plain kill does not leave them in the "stopped" state.
 for p in com.android.settings com.android.tv.settings; do
     pid=$(pidof "$p") && kill $pid

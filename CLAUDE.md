@@ -41,3 +41,7 @@ Se activa cuando `Preparar-TVBox.bat` abre esta sesión, o cuando el usuario dic
 - Tras `adb root`, la conexión por red tarda en volver: reintenta.
 - `am force-stop com.jajua.aura` apaga el servicio de botones de Aura: no lo uses.
 - Los videos con audio 5.1 a tirones en Rockchip se corrigen con `patch_audiopolicy.py` (`fabrica.ps1 -ParcheAudio`).
+- `/data/cifsmanager` (Rockchip) queda 777 en cada arranque y un servicio root ejecuta un script de ahí: `preinstall.sh`
+  lo cierra. Si `verificar.ps1` marca esa carpeta, la caja tiene un `preinstall.sh` viejo.
+- Si un video de la prueba de YouTube da 0 fps sin pista de audio, no arrancó (YouTube quedó en otra pantalla);
+  `verificar.ps1` ya reintenta una vez.

@@ -79,6 +79,31 @@ $raras = @($conex.Keys | Where-Object { $_ -notmatch '^(com\.google\.|com\.andro
 $resumen = ($conex.Keys | ForEach-Object { "$_ ($($conex[$_]))" }) -join ', '
 if ($raras) { Anotar 'AVISO' 'Conexiones' "revisa: $($raras -join ', ') | todas: $resumen" } else { Anotar 'OK' 'Conexiones' $(if ($resumen) { $resumen } else { 'ninguna' }) }
 
+# 4b. Seguridad: lo que el malware suele dejar aunque no quede ningún paquete conocido
+$procs = @(((Sh 'ps') -split "`n") | ForEach-Object { ($_.Trim() -split '\s+')[-1] } | Where-Object { $_ -match '[.:]' })
+$rarosP = @($procs | Where-Object { $_ -match ':(daemon|watch|push)$|^android\.daemon$' -or ($Perf -and $Perf.Malware -contains ($_ -split ':')[0]) } | Sort-Object -Unique)
+if ($rarosP) { Anotar 'FALLA' 'Procesos' "sospechosos: $($rarosP -join ', ')" } else { Anotar 'OK' 'Procesos' 'ninguno sospechoso' }
+$udp = @(((Sh 'cat /proc/net/udp /proc/net/udp6') -split "`n") | ForEach-Object {
+        $f = $_.Trim() -split '\s+'; if ($f.Count -ge 8 -and $f[0] -match ':$') { [Convert]::ToInt32(($f[1] -split ':')[-1], 16) } } |
+    Where-Object { $_ -notin 0, 68, 5353 } | Sort-Object -Unique)
+if ($udp) { Anotar 'FALLA' 'Puertos UDP' ($udp -join ', ') } else { Anotar 'OK' 'Puertos UDP' 'sólo DHCP' }
+$hosts = @(((Sh 'cat /system/etc/hosts') -split "`n") | Where-Object { $_.Trim() -and $_ -notmatch '^\s*#' -and $_ -notmatch '\blocalhost\b' })
+if ($hosts) { Anotar 'FALLA' 'Archivo hosts' "redirige: $($hosts -join '; ')" } else { Anotar 'OK' 'Archivo hosts' 'sin redirecciones' }
+$proxy = @((Sh 'settings get global http_proxy'), (Sh 'settings get global global_http_proxy_host')) | Where-Object { $_ -and $_ -ne 'null' -and $_ -ne ':0' }
+if ($proxy) { Anotar 'FALLA' 'Proxy' ($proxy -join ', ') } else { Anotar 'OK' 'Proxy' 'ninguno' }
+$certs = Sh 'ls /data/misc/user/0/cacerts-added 2>/dev/null'
+if ($certs) { Anotar 'AVISO' 'Certificados añadidos' $certs } else { Anotar 'OK' 'Certificados añadidos' 'ninguno' }
+$admins = @(([regex]::Matches((Sh 'dumpsys device_policy'), '(?m)^\s+([\w.]+)/[\w.$]+:\s*$')) | ForEach-Object { $_.Groups[1].Value } |
+    Where-Object { $_ -ne 'com.google.android.gms' } | Sort-Object -Unique)
+if ($admins) { Anotar 'FALLA' 'Administradores del dispositivo' ($admins -join ', ') } else { Anotar 'OK' 'Administradores del dispositivo' 'sólo Google o ninguno' }
+$acc2 = @((Sh 'settings get secure enabled_accessibility_services') -split ':' | Where-Object { $_ -and $_ -ne 'null' -and $_ -notmatch '^com\.jajua\.aura/|HiRMService' })
+if ($acc2) { Anotar 'AVISO' 'Accesibilidad' "otros servicios: $($acc2 -join ', ')" } else { Anotar 'OK' 'Accesibilidad' 'sólo Aura' }
+$cifs = Sh 'ls -ld /data/cifsmanager 2>/dev/null'
+if ($cifs -and $cifs -notmatch '^drwx------') { Anotar 'FALLA' 'Carpeta cifsmanager' "$cifs (debe ser 0700: preinstall.sh la cierra)" }
+elseif ($cifs) { Anotar 'OK' 'Carpeta cifsmanager' 'cerrada (0700)' }
+$instaladoras = @($p3 | Where-Object { (Sh "dumpsys package $_") -match 'INSTALL_PACKAGES: granted=true' })
+if ($instaladoras) { Anotar 'OK' 'Apps que pueden instalar otras' "$($instaladoras -join ', ') (son de tu carpeta de apps)" }
+
 # 5. Datos reales
 $sdk = Sh 'getprop ro.build.version.sdk'; $rel = Sh 'getprop ro.build.version.release'
 $nombres = @{ '24' = '7.0'; '25' = '7.1'; '26' = '8.0'; '27' = '8.1'; '28' = '9'; '29' = '10'; '30' = '11'; '31' = '12'; '33' = '13'; '34' = '14' }
@@ -147,13 +172,18 @@ if ($Youtube) {
         foreach ($k in 'DPAD_DOWN', 'DPAD_DOWN', 'DPAD_DOWN', 'DPAD_CENTER') { Sh "input keyevent KEYCODE_$k" | Out-Null; Start-Sleep 1 }
         Start-Sleep 12; Sh "am force-stop $yt" | Out-Null
         foreach ($v in @(@('aqz-KE-bpKQ', 60, 'Big Buck Bunny 60 fps, audio 5.1'), @('eRsGyueVLvQ', 24, 'Sintel, estéreo'))) {
+          # Si el video no llegó a arrancar (YouTube se quedó en otra pantalla), se repite una vez antes de dar falla.
+          for ($intento = 1; $intento -le 2; $intento++) {
             Sh "am force-stop $yt; logcat -c; am start -a android.intent.action.VIEW -d 'https://www.youtube.com/watch?v=$($v[0])' -n $yt/com.google.android.apps.youtube.tv.activity.ShellActivity" | Out-Null
             Start-Sleep 40; $a = Medida; $f1 = Fps; Start-Sleep 12; $f2 = Fps; Start-Sleep 12; $f3 = Fps; $b = Medida
             $ytpid = Sh "pidof $yt"
             $mask = ([regex]::Matches((Sh 'dumpsys media.audio_flinger 2>/dev/null'), "(?m)^\s*\d+\s+(?:yes|no)\s+$ytpid\s+\d+\s+[0-9A-F]+\s+([0-9A-F]{8})") | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique) -join ','
             $vel = [math]::Round((($b[1] - $a[1]) / ($b[0] - $a[0])) / 44100, 2); $cortes = $b[2] - $a[2]
             $fps = [math]::Min([math]::Min($f1[0], $f2[0]), $f3[0]); $hueco = [math]::Max([math]::Max($f1[1], $f2[1]), $f3[1])
-            $det = "audio $($vel)x, $cortes cortes, $fps fps (esperado $($v[1])), hueco máx. $hueco ms, canales $mask"
+            if ($fps -gt 0 -or $mask) { break }
+            Write-Host "  (el video no arrancó: reintento)" -ForegroundColor DarkGray
+          }
+            $det = "audio $($vel)x, $cortes cortes, $fps fps (esperado $($v[1])), hueco máx. $hueco ms, canales $mask$(if ($intento -gt 1) { ', al 2º intento' })"
             if ($vel -ge 0.95 -and $cortes -eq 0 -and $fps -ge 0.9 * $v[1]) { Anotar 'OK' "YouTube: $($v[2])" $det } else { Anotar 'FALLA' "YouTube: $($v[2])" $det }
         }
         Sh "am force-stop $yt; input keyevent KEYCODE_HOME" | Out-Null

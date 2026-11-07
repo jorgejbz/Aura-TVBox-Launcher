@@ -120,6 +120,15 @@ Malware ya identificado:
 Revisa también `/sdcard/Download/app/`: ahí el malware deja en cola lo próximo que va a instalar (se vieron
 `AdPreController` y `CleanUp`). Cada caja puede traer paquetes nuevos: repite `pm list packages -3` tras cada paso.
 
+**Agujero del firmware Rockchip, sin malware dentro:** `init.rk30board.rc` recrea en cada arranque
+`/data/cifsmanager` con permisos 777, y el servicio `cifsmanager` ejecuta `/data/cifsmanager/cifsmanager.sh` como root.
+Con SELinux en *Permissive*, cualquier app podría dejar ahí un script. `scripts/preinstall.sh` vacía la carpeta y la deja
+`0700 root` al final de cada arranque, y `verificar.ps1` lo comprueba.
+
+**Auditoría más allá de los paquetes** (la hace `verificar.ps1`): procesos `:daemon`/`:watch`, puertos TCP y UDP,
+`/system/etc/hosts`, proxy global, certificados de usuario, administradores del dispositivo y servicios de accesibilidad.
+Para descartar un troyano en el *zygote*, mira las bibliotecas que carga: `cat /proc/$(pidof zygote)/maps`.
+
 Compara además **lo que muestran las pantallas** con el kernel. Abre Ajustes › Almacenamiento y Memoria, y compara con:
 ```powershell
 adb -s <SERIE> shell "df -k /data; grep MemTotal /proc/meminfo; cat /proc/iomem | grep 'System RAM'"
