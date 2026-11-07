@@ -16,7 +16,8 @@ $logs = Join-Path $root 'logs'
 New-Item -ItemType Directory -Force $logs | Out-Null
 $report = Join-Path $logs ("diagnostico-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.md')
 $alertas = New-Object System.Collections.Generic.List[string]
-function Out-Line($m) { $m | Tee-Object -FilePath $report -Append }
+# UTF-8 (Tee-Object de PowerShell 5.1 escribe UTF-16, que otras herramientas leen mal).
+function Out-Line($m) { $m | Out-File -FilePath $report -Append -Encoding utf8; $m }
 function Alerta($m) { $alertas.Add($m); Out-Line "  ⚠️ $m" }
 
 # ---------------------------------------------------------------- 1. encontrar la caja
@@ -149,7 +150,8 @@ foreach ($l in $sec['CONN']) {
     if ($l -match '^\s*(\d+)\s+(\d+)') {
         $n = [int]$matches[1]; $uid = $matches[2]
         Out-Line "- $n conexiones salientes: uid $uid $($byUid[$uid])"
-        if ($n -ge 10 -and $uid -ne '2000') { Alerta "uid $uid ($($byUid[$uid])) tiene $n conexiones simultáneas: patrón de PROXY RESIDENCIAL." }
+        # Los servicios de Google abren muchas conexiones a la vez: no es un proxy.
+        if ($n -ge 10 -and $uid -ne '2000' -and "$($byUid[$uid])".Trim() -notmatch '^(com\.google\.\S+\s*)+$') { Alerta "uid $uid ($($byUid[$uid])) tiene $n conexiones simultáneas: patrón de PROXY RESIDENCIAL." }
     }
 }
 

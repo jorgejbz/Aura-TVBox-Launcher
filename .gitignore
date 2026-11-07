@@ -28,3 +28,6 @@ docs/capturas/32-*
 
 # CEC bridge build output.
 cec-bridge/out/
+
+# Claude Code: local permissions for the watcher session.
+.claude/settings.local.json

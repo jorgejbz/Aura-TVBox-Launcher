@@ -1,14 +1,19 @@
 ﻿# Prepara una TV Box de principio a fin siguiendo docs/GUIA-NUEVA-TVBOX.md:
 # requisitos > diagnóstico > respaldo > limpieza > falsificaciones > fábrica > formateo > verificación.
 #
-# - Firmware conocido (scripts/perfiles/*.psd1): casi todo automático, con una confirmación por cada bloque que cambia algo.
+# - Firmware conocido (scripts/perfiles/*.psd1): automático de principio a fin. Las protecciones no dependen de
+#   confirmar: sólo actúa si el firmware coincide con un perfil y el respaldo se verificó partición por partición.
 # - Firmware nuevo: hace el diagnóstico y el respaldo (sólo lectura) y se detiene. Sigue la guía a mano.
 # - Cada caja tiene un ID sacado de su hardware (p. ej. RK3228A-1a2b3c4d). Todo queda en logs\cajas\<ID>\:
 #   registro completo, diagnóstico, verificación, estado (para retomar donde se quedó) y una ficha de la caja.
+# - Si la verificación final sale sin fallas, borra el respaldo de esa caja (salvo con -ConservarRespaldo).
+# - Avisa con sonido y voz al terminar, al detenerse o si el firmware es nuevo.
 #
 # Uso:  .\preparar.ps1 -Ip 192.168.X.Y          (o sin -Ip: busca la caja en la red)
 #       -Desde fabrica      repetir desde una etapa      -Simular   mostrar lo que haría, sin cambiar nada
 #       -Apks carpeta       apps para la caja             -SinFormatear / -SinYoutube   saltar esas partes
+#       -Preguntar          pedir confirmación antes de cada bloque que cambia la caja
+#       -ConservarRespaldo  no borrar el respaldo al terminar
 param(
     [string] $Ip = '',
     [string] $Serial = '',
@@ -19,7 +24,9 @@ param(
     [string] $Desde = '',
     [switch] $Simular,
     [switch] $SinFormatear,
-    [switch] $SinYoutube
+    [switch] $SinYoutube,
+    [switch] $Preguntar,
+    [switch] $ConservarRespaldo
 )
 $ErrorActionPreference = 'Continue'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -42,11 +49,24 @@ function Guardar {
     if (-not $script:Caja -or $Simular) { return }
     $script:Estado | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 (Join-Path $script:Caja 'estado.json')
 }
+# Sonido y voz para cuando hace falta la persona (si el equipo no tiene voz en español, sólo suena).
+function Avisar($texto) {
+    try {
+        [System.Media.SystemSounds]::Exclamation.Play(); Start-Sleep -Milliseconds 400
+        foreach ($f in 880, 1175, 1568) { [console]::Beep($f, 200) }
+        Add-Type -AssemblyName System.Speech
+        $voz = New-Object System.Speech.Synthesis.SpeechSynthesizer
+        $es = $voz.GetInstalledVoices() | Where-Object { $_.VoiceInfo.Culture.Name -like 'es*' } | Select-Object -First 1
+        if ($es) { $voz.SelectVoice($es.VoiceInfo.Name); $voz.Volume = 100; $voz.Speak($texto) }
+    } catch { }
+}
 function Fallar($m) {
     Write-Host "`nDETENIDO: $m" -ForegroundColor Red
     Write-Host "Registro completo: $script:Log"
     if ($script:Estado) { $script:Estado.Notas += "$(Get-Date -Format 'yyyy-MM-dd HH:mm') DETENIDO: $m" }
-    Guardar; Stop-Transcript | Out-Null; exit 1
+    Guardar
+    if (-not $Simular) { Avisar 'Atención: la preparación de la TV Box se detuvo. Revisa la ventana.' }
+    Stop-Transcript | Out-Null; exit 1
 }
 function Sh($c) { (adb -s $script:S shell $c 2>&1 | Out-String).Trim() }
 # Lo que cambia la caja pasa por aquí: con -Simular sólo se muestra.
@@ -57,12 +77,23 @@ function Cambio($desc, [scriptblock] $accion) {
 function Confirmar($texto) {
     Write-Host "`n$texto" -ForegroundColor Yellow
     if ($Simular) { Write-Host '  [simulado] aquí se pediría confirmar' -ForegroundColor DarkYellow; return }
+    if (-not $Preguntar) { Write-Host '  (automático: sigue sin preguntar; usa -Preguntar para confirmar cada bloque)' -ForegroundColor DarkGray; return }
+    Avisar 'La TV Box pide confirmar. Revisa la ventana.'
     if ((Read-Host '¿Continuar? (s/n)') -ne 's') { Fallar 'Cancelado. Vuelve a ejecutar el .bat para seguir desde esta etapa.' }
 }
 function Root {
-    adb -s $script:S root 2>&1 | Out-Null; Start-Sleep 4
-    if ($script:S -match ':') { adb connect $script:S 2>&1 | Out-Null; Start-Sleep 2 }
-    if ((Sh 'id -u') -ne '0') { Fallar 'adb root no funciona en este firmware: no se puede modificar /system (ver guía).' }
+    if ((Sh 'id -u') -eq '0') { return }
+    adb -s $script:S root 2>&1 | Out-Null
+    # adbd se reinicia como root: la conexión por red tarda unos segundos en volver.
+    for ($i = 0; $i -lt 10; $i++) {
+        Start-Sleep 3
+        if ($script:S -match ':') {
+            if ((adb -s $script:S get-state 2>&1 | Out-String).Trim() -ne 'device') { adb disconnect $script:S 2>&1 | Out-Null }
+            adb connect $script:S 2>&1 | Out-Null; Start-Sleep 1
+        }
+        if ((Sh 'id -u') -eq '0') { return }
+    }
+    Fallar "adb root no funciona en este firmware (id -u = '$(Sh 'id -u')'): no se puede modificar /system (ver guía)."
 }
 function Esperar-Arranque([int] $minutos = 10, [switch] $ConApps) {
     $fin = (Get-Date).AddMinutes($minutos); Start-Sleep 25
@@ -195,7 +226,8 @@ function Requisitos {
         Invoke-WebRequest -UseBasicParsing 'https://github.com/jorgejbz/Aura-TVBox-Launcher/releases/latest/download/Aura.apk' -OutFile $script:Aura
     }
     # Sólo se acepta el Aura firmado con la llave del proyecto.
-    $cert = (& (Join-Path $script:BT 'apksigner.bat') verify --print-certs $script:Aura 2>$null | Select-String 'SHA-256 digest: (\w+)' | Select-Object -First 1).Matches.Groups[1].Value
+    # Por cmd, para descartar los avisos de Java de apksigner sin que PowerShell los muestre como error.
+    $cert = (cmd /c "`"$(Join-Path $script:BT 'apksigner.bat')`" verify --print-certs `"$script:Aura`" 2>nul" | Select-String 'SHA-256 digest: (\w+)' | Select-Object -First 1).Matches.Groups[1].Value
     if ($cert -ne '1bf3f8f944dac8496f0f13be7a40304ef6622c51e778f4d9e160b99ebc12ff21') {
         Fallar "build\Aura.apk no tiene la firma de Aura ($cert). Bórralo y vuelve a ejecutar."
     }
@@ -209,7 +241,7 @@ function Etapa-diagnostico {
     $real = $salida | ForEach-Object { if ("$_" -match '^- (\S+) → REAL') { $matches[1] } } | Select-Object -First 1
     if (-not $real) { Fallar 'No encontré un ADB real. Activa la depuración USB y revisa la guía ("Si no aparece ningún ADB").' }
     $script:S = $real
-    $inf = $salida | ForEach-Object { if ("$_" -match '^Informe: (.+)$') { $matches[1] } } | Select-Object -First 1
+    $inf = $salida | ForEach-Object { if ("$_".Trim() -match '^Informe: (.+)$') { $matches[1] } } | Select-Object -First 1
     Root; Abrir-Caja
     if ($inf -and (Test-Path $inf)) { Copy-Item $inf $script:Caja }
 }
@@ -236,10 +268,10 @@ function Etapa-respaldo {
 }
 
 function Etapa-limpieza {
-    $P = $script:Perfil
-    foreach ($k in $P.Comprobar.Keys) { if ((Sh $k) -ne $P.Comprobar[$k]) { Fallar "No se cumple '$k' = '$($P.Comprobar[$k])' (dio '$(Sh $k)'): revisa antes de borrar." } }
+    $Perf = $script:Perfil
+    foreach ($k in $Perf.Comprobar.Keys) { if ((Sh $k) -ne $Perf.Comprobar[$k]) { Fallar "No se cumple '$k' = '$($Perf.Comprobar[$k])' (dio '$(Sh $k)'): revisa antes de borrar." } }
     $quitar = @(Paquetes3 | Where-Object { $_ -ne 'com.jajua.aura' })
-    $sist = @($P.BorrarSistema | Where-Object { (Sh "ls -d $_ 2>/dev/null") })
+    $sist = @($Perf.BorrarSistema | Where-Object { (Sh "ls -d $_ 2>/dev/null") })
     Confirmar ("Se va a limpiar la caja $($script:Estado.Id):`n" +
         "  - Aura temporal como inicio`n  - Deshabilitar el malware conocido`n" +
         "  - Desinstalar de /data: $(if ($quitar) { $quitar -join ', ' } else { 'nada' })`n" +
@@ -248,40 +280,40 @@ function Etapa-limpieza {
         "  - Reiniciar dos veces`n  Respaldo: $($script:Estado.Respaldo)")
     $copias = if ($script:Estado.Respaldo) { Join-Path $script:Estado.Respaldo 'data-apps' } else { '(sin respaldo)' }
     # Tus apps (las de la carpeta de fabrica.ps1) se reinstalan al final: no son sospechosas.
-    $dirApps = if ($Apks) { $Apks } else { Join-Path $root $P.Apks }
+    $dirApps = if ($Apks) { $Apks } else { Join-Path $root $Perf.Apks }
     $tuyas = @(Paquetes-De-Apks $dirApps)
     Cambio 'Instalar Aura temporal y ponerla de inicio' {
         adb -s $script:S install -r $script:Aura 2>&1 | Out-Null
         Sh 'cmd package set-home-activity com.jajua.aura/.HomeActivity' | Out-Null
     }
     $todos = Todos
-    foreach ($p in $P.Deshabilitar) { if ($todos -contains $p) { Cambio "Deshabilitar $p" { Sh "am force-stop $p; pm disable $p" | Out-Null } } }
+    foreach ($p in $Perf.Deshabilitar) { if ($todos -contains $p) { Cambio "Deshabilitar $p" { Sh "am force-stop $p; pm disable $p" | Out-Null } } }
     foreach ($p in $quitar) {
-        $sospechosa = $P.Conocidas -notcontains $p -and $tuyas -notcontains $p
+        $sospechosa = $Perf.Conocidas -notcontains $p -and $tuyas -notcontains $p
         if ($sospechosa -and -not $Simular -and $script:Estado.Respaldo) {
             New-Item -ItemType Directory -Force $copias | Out-Null
             $ruta = (Sh "pm path $p") -replace '^package:', '' -split "`n" | Select-Object -First 1
             if ($ruta) { adb -s $script:S pull $ruta.Trim() (Join-Path $copias "$p.apk") 2>&1 | Out-Null }
         }
-        if ($sospechosa -and $P.Malware -notcontains $p) { Aviso "App desconocida en /data: $p (copia en $copias). Revísala." }
+        if ($sospechosa -and $Perf.Malware -notcontains $p) { Aviso "App desconocida en /data: $p (copia en $copias). Revísala." }
         Cambio "Desinstalar $p" { Sh "pm uninstall $p" | Out-Null }
     }
-    if ($P.ReemplazarPreinstall) {
+    if ($Perf.ReemplazarPreinstall) {
         Cambio 'Reemplazar preinstall.sh del firmware (conserva su etiqueta SELinux)' {
             adb -s $script:S push (Join-Path $PSScriptRoot 'preinstall.sh') /data/local/tmp/preinstall.sh 2>&1 | Out-Null; Remount
             Sh 'cat /data/local/tmp/preinstall.sh > /system/bin/preinstall.sh; touch /data/local/symbol_thirdpart_apks_installed; rm /data/local/tmp/preinstall.sh; sync' | Out-Null
         }
     }
-    Cambio 'Borrar restos y la cola de instalación' { Sh ("rm -rf " + ($P.BorrarDatos -join ' ')) | Out-Null }
+    Cambio 'Borrar restos y la cola de instalación' { Sh ("rm -rf " + ($Perf.BorrarDatos -join ' ')) | Out-Null }
     Reiniciar
     $vuelto = if ($Simular) { @() } else { @(Paquetes3 | Where-Object { $_ -ne 'com.jajua.aura' }) }
     foreach ($p in $vuelto) { Aviso "Volvió o apareció $p tras reiniciar: lo desinstalo (revisa de dónde viene)."; Cambio "Desinstalar $p" { Sh "pm uninstall $p" | Out-Null } }
     Cambio "Borrar de /system $($sist.Count) elementos" { Remount; Sh ("rm -rf " + ($sist -join ' ') + '; sync') | Out-Null }
     Reiniciar
     if (-not $Simular) {
-        $resto = @(Todos | Where-Object { $P.Malware -contains $_ })
+        $resto = @(Todos | Where-Object { $Perf.Malware -contains $_ })
         if ($resto) { Fallar "Sigue instalado: $($resto -join ', ')" }
-        $extra = @((Sh 'ls /system/app /system/priv-app') -split '\s+' | Where-Object { $_ -and $_ -notmatch ':$' -and $P.SistemaEsperado -notcontains $_ })
+        $extra = @((Sh 'ls /system/app /system/priv-app') -split '\s+' | Where-Object { $_ -and $_ -notmatch ':$' -and $Perf.SistemaEsperado -notcontains $_ })
         if ($extra) { Aviso "En /system quedan carpetas que el perfil no conoce: $($extra -join ', ')" }
         $escucha = Sh 'netstat -tlnp 2>/dev/null | grep LISTEN | grep -v adbd'
         if ($escucha) { Aviso "Algo más escucha en la red: $escucha" } else { Info 'Sólo ADB escucha en la red.' }
@@ -300,9 +332,9 @@ function Almacenamiento-Real {
 }
 
 function Etapa-falsificaciones {
-    $P = $script:Perfil
+    $Perf = $script:Perfil
     $tmp = Join-Path $env:TEMP 'aura-preparar'; New-Item -ItemType Directory -Force $tmp | Out-Null
-    if ($P.Javacore) {
+    if ($Perf.Javacore) {
         if (Almacenamiento-Real) { Info 'libjavacore: el almacenamiento ya es real.' }
         else {
             adb -s $script:S pull /system/lib/libjavacore.so (Join-Path $tmp 'libjavacore.so') 2>&1 | Out-Null
@@ -312,12 +344,12 @@ function Etapa-falsificaciones {
             Cambio 'Instalar libjavacore.so parcheado' { Instalar-Lib (Join-Path $tmp 'libjavacore.new') '/system/lib/libjavacore.so' }
         }
     }
-    foreach ($k in $P.BuildProp.Keys) {
-        $v = $P.BuildProp[$k]
+    foreach ($k in $Perf.BuildProp.Keys) {
+        $v = $Perf.BuildProp[$k]
         if ((Sh "grep '^$k=' /system/build.prop") -ne "$k=$v") { Cambio "build.prop: $k=$v" { Remount; Sh "sed -i 's#^$k=.*#$k=$v#' /system/build.prop; sync" | Out-Null } }
     }
-    if ($P.Ajustes) {
-        $script:Bind = Join-Path $root "apks\bind-$($P.Archivo)"
+    if ($Perf.Ajustes) {
+        $script:Bind = Join-Path $root "apks\bind-$($Perf.Archivo)"
         $nombres = 'priv-app@Settings@Settings.apk', 'priv-app@TvSettings@TvSettings.apk'
         if (@($nombres | Where-Object { Test-Path (Join-Path $script:Bind $_) }).Count -eq 2) { Info "Ajustes parcheados ya generados: $script:Bind" }
         elseif ($Simular) { Write-Host "  [simulado] generar Ajustes parcheados en $script:Bind" -ForegroundColor DarkYellow }
@@ -336,14 +368,14 @@ function Etapa-falsificaciones {
 }
 
 function Etapa-fabrica {
-    $P = $script:Perfil
-    if (-not $Apks) { $script:Apks = Join-Path $root $P.Apks } else { $script:Apks = $Apks }
+    $Perf = $script:Perfil
+    if (-not $Apks) { $script:Apks = Join-Path $root $Perf.Apks } else { $script:Apks = $Apks }
     if (-not (Get-ChildItem $script:Apks -Recurse -Filter *.apk -ErrorAction SilentlyContinue)) { Fallar "No hay APK en $script:Apks (ver guía, paso 1)." }
     if ((Sh 'pm path com.jajua.aura') -match '/data/app') { Cambio 'Quitar el Aura temporal (queda la de sistema)' { Sh 'pm uninstall com.jajua.aura' | Out-Null } }
     $a = @{ Serial = $script:S; Apks = $script:Apks; Idioma = $Idioma; ZonaHoraria = $ZonaHoraria; SinConfirmar = $true }
-    if ($P.Overscan) { $a.Overscan = $P.Overscan }
-    if ($P.Ajustes) { $a.Bind = Join-Path $root "apks\bind-$($P.Archivo)" }
-    if ($P.ParcheAudio) { $a.ParcheAudio = $true }
+    if ($Perf.Overscan) { $a.Overscan = $Perf.Overscan }
+    if ($Perf.Ajustes) { $a.Bind = Join-Path $root "apks\bind-$($Perf.Archivo)" }
+    if ($Perf.ParcheAudio) { $a.ParcheAudio = $true }
     Confirmar "fabrica.ps1 va a escribir en /system: Aura, las apps de $script:Apks (borra /system/preinstall), animación, ajustes y parches."
     Cambio 'fabrica.ps1' {
         try { & (Join-Path $PSScriptRoot 'fabrica.ps1') @a | Where-Object { "$_" -notmatch 'file pushed' } | ForEach-Object { Write-Host "    $_" } }
@@ -371,7 +403,8 @@ function Etapa-verificacion {
     if (-not $Apks) { $a.Apks = Join-Path $root $script:Perfil.Apks } else { $a.Apks = $Apks }
     if (-not $SinYoutube) { $a.Youtube = $true }
     & (Join-Path $PSScriptRoot 'verificar.ps1') @a
-    if ($LASTEXITCODE -ne 0) { Aviso 'La verificación encontró fallas: revisa el informe.' }
+    $script:VerificacionOk = ($LASTEXITCODE -eq 0)
+    if (-not $script:VerificacionOk) { Aviso 'La verificación encontró fallas: revisa el informe. El respaldo se conserva.' }
 }
 
 # ------------------------------------------------------------------ principal
@@ -392,6 +425,7 @@ foreach ($e in $Etapas) {
         Write-Host "`nFirmware NUEVO: no hay un perfil para él en scripts\perfiles." -ForegroundColor Yellow
         Write-Host 'El diagnóstico y el respaldo están hechos. Sigue docs\GUIA-NUEVA-TVBOX.md desde el paso 5, o pídele a Claude Code'
         Write-Host "que siga con la caja $($script:Estado.Id) leyendo $script:Caja. Lo aprendido se guarda luego como perfil nuevo."
+        Avisar 'Firmware nuevo: el diagnóstico y el respaldo están listos. Hace falta seguir a mano.'
         Stop-Transcript | Out-Null; exit 0
     }
     Titulo "Etapa: $e"
@@ -400,7 +434,19 @@ foreach ($e in $Etapas) {
 }
 Titulo 'Terminado'
 Info "Caja: $($script:Estado.Id)   Carpeta: $script:Caja"
+# Caja terminada y verificada: su respaldo ya no hace falta (el registro y los informes se quedan).
+$resp = $script:Estado.Respaldo
+if ($script:VerificacionOk -and -not $ConservarRespaldo -and -not $Simular -and $resp -and (Test-Path $resp) -and
+    (Split-Path $resp -Parent) -eq (Join-Path $root 'backups')) {
+    Remove-Item -Recurse -Force $resp
+    Info "Respaldo borrado: la caja quedó verificada sin fallas ($resp)."
+    $script:Estado.Respaldo = ''; Guardar
+} elseif ($resp -and (Test-Path $resp)) { Info "Respaldo conservado en $resp" }
 Info 'Pendiente en la TV: acepta los permisos de cada app la primera vez, comprueba imagen y sonido,'
 Info 'y al final cierra el ADB en Aura › Sistema › Cerrar ADB.'
 if ($script:Estado.Notas) { Write-Host "`nAvisos:"; $script:Estado.Notas | ForEach-Object { Write-Host "  $_" } }
+if (-not $Simular) {
+    if ($script:VerificacionOk) { Avisar 'La TV Box quedó lista y verificada sin fallas.' }
+    else { Avisar 'La preparación terminó, pero la verificación encontró fallas. Revisa el informe.' }
+}
 Stop-Transcript | Out-Null

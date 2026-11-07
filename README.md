@@ -57,8 +57,14 @@ Con la PC preparada (paso 0 de abajo) y la caja conectada por cable con la depur
 en **`Preparar-TVBox.bat`** y escribe la IP de la caja. Recorre la guía entera por etapas: diagnóstico, respaldo
 verificado, limpieza, falsificaciones, `fabrica.ps1`, formateo y verificación final (incluida una prueba de YouTube con
 audio 5.1 y estéreo).
-- **Firmware conocido** (los de `scripts/perfiles/`): casi todo automático. Pide confirmar antes de cada bloque que
-  borra, escribe en `/system` o formatea.
+- **Firmware conocido** (los de `scripts/perfiles/`): automático de principio a fin, sin preguntar. Sólo actúa si el
+  firmware coincide con el perfil y el respaldo se verificó partición por partición. Con `-Preguntar` pide confirmar
+  antes de cada bloque que borra, escribe en `/system` o formatea.
+- **Avisa con sonido y voz** al terminar, si se detiene o si el firmware es nuevo.
+- **Claude Code como vigilante:** si está instalado, el `.bat` lo abre en otra ventana. Si el proceso se detiene, lee el
+  registro, corrige el script y lo retoma (ver `CLAUDE.md`). Para no abrirlo: `set AURA_SIN_CLAUDE=1`.
+- **Respaldos:** si la verificación final sale sin fallas, se borra el respaldo de esa caja (`-ConservarRespaldo` lo
+  guarda). Si hay fallas, se conserva.
 - **Firmware nuevo:** hace el diagnóstico y el respaldo, que no cambian nada, y se detiene. Sigue la guía a mano;
   lo aprendido se guarda luego como un perfil nuevo.
 - **Cada caja tiene un ID** sacado de su hardware, por ejemplo `RK3228A-1a2b3c4d`. Todo queda en

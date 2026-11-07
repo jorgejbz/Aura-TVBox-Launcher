@@ -21,8 +21,8 @@ function Anotar($estado, $que, $detalle) {
     $color = @{ 'OK' = 'Green'; 'AVISO' = 'Yellow'; 'FALLA' = 'Red' }[$estado]
     Write-Host ("  {0,-5} {1}: {2}" -f $estado, $que, $detalle) -ForegroundColor $color
 }
-$P = $null
-if ($Perfil) { $P = Import-PowerShellDataFile (Join-Path $PSScriptRoot "perfiles\$Perfil.psd1") }
+$Perf = $null
+if ($Perfil) { $Perf = Import-PowerShellDataFile (Join-Path $PSScriptRoot "perfiles\$Perfil.psd1") }
 if ($Serial -match ':') { adb connect $Serial 2>&1 | Out-Null }
 adb -s $Serial root 2>&1 | Out-Null; Start-Sleep 4; if ($Serial -match ':') { adb connect $Serial 2>&1 | Out-Null; Start-Sleep 2 }
 Write-Host "`nVerificación de $Serial" -ForegroundColor Cyan
@@ -49,9 +49,9 @@ if ($Apks -and (Test-Path $Apks)) {
 } else { Anotar 'AVISO' 'Apps' "instaladas: $($p3 -join ', ') (sin -Apks no se comparan)" }
 
 # 3. Malware
-if ($P) {
+if ($Perf) {
     $todos = @(adb -s $Serial shell pm list packages 2>$null | ForEach-Object { ($_ -replace '^package:', '').Trim() })
-    $hay = @($P.Malware | Where-Object { $todos -contains $_ })
+    $hay = @($Perf.Malware | Where-Object { $todos -contains $_ })
     if ($hay) { Anotar 'FALLA' 'Malware' ($hay -join ', ') } else { Anotar 'OK' 'Malware' 'ningún paquete conocido' }
 }
 $cola = Sh 'ls /sdcard/Download/app 2>/dev/null'
@@ -87,14 +87,14 @@ $df = [long](((Sh 'df -k /data | tail -n 1') -split '\s+')[1])
 if ((Sh 'dumpsys diskstats | grep Data-Free') -match '/\s*(\d+)K') { $fw = [long]$matches[1] } else { $fw = 0 }
 if ($df -gt 0 -and [math]::Abs($fw - $df) / $df -lt 0.03) { Anotar 'OK' 'Almacenamiento' "$([math]::Round($df/1MB,2)) GB, igual que el kernel" }
 else { Anotar 'FALLA' 'Almacenamiento' "las apps ven $([math]::Round($fw/1MB,2)) GB y el kernel dice $([math]::Round($df/1MB,2)) GB" }
-foreach ($k in 'ro.product.manufacturer', 'ro.product.chipset') { if ($P -and $P.BuildProp[$k] -and (Sh "getprop $k") -ne $P.BuildProp[$k]) { Anotar 'FALLA' $k (Sh "getprop $k") } }
+foreach ($k in 'ro.product.manufacturer', 'ro.product.chipset') { if ($Perf -and $Perf.BuildProp[$k] -and (Sh "getprop $k") -ne $Perf.BuildProp[$k]) { Anotar 'FALLA' $k (Sh "getprop $k") } }
 
 # 6. Parches
-if ($P -and $P.Ajustes) {
+if ($Perf -and $Perf.Ajustes) {
     $n = [int]("0" + (Sh 'grep -c priv-app/.*Settings /proc/mounts'))
     if ($n -ge 2) { Anotar 'OK' 'Ajustes parcheados' 'montados' } else { Anotar 'FALLA' 'Ajustes parcheados' "$n de 2 montados (logcat -s preinstall)" }
 }
-if ($P -and $P.ParcheAudio) {
+if ($Perf -and $Perf.ParcheAudio) {
     $tmp = Join-Path $env:TEMP 'aura-verificar'; New-Item -ItemType Directory -Force $tmp | Out-Null
     adb -s $Serial pull /system/lib/libaudiopolicymanagerdefault.so (Join-Path $tmp 'a.so') 2>&1 | Out-Null
     python (Join-Path $PSScriptRoot 'patch_audiopolicy.py') (Join-Path $tmp 'a.so') (Join-Path $tmp 'b.so') | Out-Null
