@@ -49,3 +49,8 @@ esta vez y dile al usuario qué cambiar en el repo. Las apps vienen de `AURA_APK
   lo cierra. Si `verificar.ps1` marca esa carpeta, la caja tiene un `preinstall.sh` viejo.
 - Si un video de la prueba de YouTube da 0 fps sin pista de audio, no arrancó (YouTube quedó en otra pantalla);
   `verificar.ps1` ya reintenta una vez.
+- Tras un formateo, `adbd` puede quedar trabado: el puerto acepta pero no contesta y `adb` lo ve `offline` (ni
+  reiniciar la caja ni *Cerrar/Abrir ADB* de Aura lo arreglan). Se destraba apagando y encendiendo *Depuración USB*
+  en la TV; luego retoma con `-Desde verificacion` (no repitas el formateo).
+- Una caja ya preparada en otra PC (sin `estado.json`) no se rehace: `preparar.ps1` detecta en la caja si limpieza,
+  falsificaciones y fábrica ya están hechas y las salta.

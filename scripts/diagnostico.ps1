@@ -42,7 +42,16 @@ function Find-Candidates {
 # Un ADB falso responde con texto fijo: no tiene echo, lista lo mismo para cualquier ruta y casi no tiene paquetes.
 function Test-RealAdb($s) {
     if ($s -match ':') { adb connect $s 2>&1 | Out-Null; Start-Sleep 2 }
-    if ((adb -s $s get-state 2>&1 | Out-String).Trim() -ne 'device') { return 'NO AUTORIZADO / SIN CONEXIÓN' }
+    # La primera vez la TV pide autorizar la depuración: espera hasta 30 s antes de rendirse.
+    $estado = ''
+    for ($i = 0; $i -lt 15; $i++) {
+        $estado = (adb -s $s get-state 2>&1 | Out-String).Trim()
+        if ($estado -eq 'device') { break }
+        if ($i -eq 0) { Write-Host "  $s aún no responde ($estado): si la TV pide autorizar la depuración, acéptala." }
+        if ($s -match ':' -and $estado -notmatch 'unauthorized') { adb connect $s 2>&1 | Out-Null }
+        Start-Sleep 2
+    }
+    if ($estado -ne 'device') { return 'NO AUTORIZADO / SIN CONEXIÓN' }
     $echo = (adb -s $s shell echo AURA_OK 2>&1 | Out-String).Trim()
     $ls = (adb -s $s shell ls /zz_no_existe_aura 2>&1 | Out-String)
     $pkgs = @(adb -s $s shell pm list packages 2>$null | Where-Object { $_ -like 'package:*' }).Count

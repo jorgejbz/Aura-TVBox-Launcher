@@ -97,8 +97,18 @@ function Root {
 }
 function Esperar-Arranque([int] $minutos = 10, [switch] $ConApps) {
     $fin = (Get-Date).AddMinutes($minutos); Start-Sleep 25
+    $offline = 0; $pedido = $false
     while ((Get-Date) -lt $fin) {
-        if ($script:S -match ':') { adb connect $script:S 2>&1 | Out-Null }
+        if ($script:S -match ':') {
+            # Tras un formateo, adbd puede quedar trabado: el puerto acepta pero no contesta y adb lo ve "offline".
+            if ((adb -s $script:S get-state 2>&1 | Out-String) -match 'offline') { adb disconnect $script:S 2>&1 | Out-Null; $offline++ } else { $offline = 0 }
+            adb connect $script:S 2>&1 | Out-Null
+            if ($offline -ge 20 -and -not $pedido) {
+                $pedido = $true
+                Aviso 'ADB de la caja trabado (offline): en la TV apaga y vuelve a encender Ajustes › Opciones de desarrollador › Depuración USB.'
+                Avisar 'El ADB de la TV Box se trabó. Apaga y enciende la depuración USB en la TV.'
+            }
+        }
         if ((Sh 'getprop sys.boot_completed') -eq '1' -and (-not $ConApps -or (Sh 'ls /data/local/symbol_thirdpart_apks_installed 2>/dev/null'))) {
             Start-Sleep 30; Root; return
         }
@@ -470,6 +480,42 @@ function Etapa-verificacion {
     if (-not $script:VerificacionOk) { Aviso 'La verificación encontró fallas: revisa el informe. El respaldo se conserva.' }
 }
 
+# Caja ya preparada (en otra PC o con un estado.json perdido): mira la caja misma para saber si una etapa que cambia
+# /system ya está hecha. Devuelve '' si está hecha o el motivo por el que hay que hacerla.
+function Falta-En-Caja($e) {
+    $Perf = $script:Perfil
+    $nuestro = [int]("0" + (Sh "grep -c 'Reinstalls the user' /system/bin/preinstall.sh 2>/dev/null"))
+    switch ($e) {
+        'limpieza' {
+            $todos = Todos
+            $mal = @($Perf.Malware | Where-Object { $todos -contains $_ })
+            if ($mal) { return "queda malware: $($mal -join ', ')" }
+            $sist = @($Perf.BorrarSistema | Where-Object { (Sh "ls -d $_ 2>/dev/null") })
+            if ($sist) { return "quedan en /system: $($sist -join ', ')" }
+            if ($Perf.ReemplazarPreinstall -and -not $nuestro) { return 'preinstall.sh sigue siendo el del firmware' }
+        }
+        'falsificaciones' {
+            if ($Perf.Javacore -and -not (Almacenamiento-Real)) { return 'el almacenamiento sigue falsificado' }
+            foreach ($k in $Perf.BuildProp.Keys) { if ((Sh "grep '^$k=' /system/build.prop") -ne "$k=$($Perf.BuildProp[$k])") { return "build.prop: falta $k" } }
+            if ($Perf.Ajustes -and [int]("0" + (Sh 'ls /system/etc/aura/bind 2>/dev/null | grep -c Settings')) -lt 2) { return 'faltan los Ajustes parcheados' }
+        }
+        'fabrica' {
+            if ((Sh 'pm path com.jajua.aura') -notmatch '/system/priv-app/Aura') { return 'Aura no es app de sistema' }
+            $inicio = Sh 'cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -n 1'
+            if ($inicio -ne 'com.jajua.aura/.HomeActivity') { return "el inicio no es Aura ($inicio)" }
+            if (-not $nuestro) { return 'falta el preinstall.sh propio' }
+            $dir = Carpeta-Apps $Perf
+            if (Test-Path $dir) {
+                $hay = @((Sh 'ls /system/preinstall') -split '\s+' | Where-Object { $_ })
+                $faltan = @(Get-ChildItem $dir | Where-Object { $hay -notcontains $_.Name } | ForEach-Object { $_.Name })
+                if ($faltan) { return "faltan en /system/preinstall: $($faltan -join ', ')" }
+            }
+        }
+        default { return 'no se puede detectar' }
+    }
+    return ''
+}
+
 # ------------------------------------------------------------------ principal
 Write-Host "Preparar TV Box — $(Get-Date -Format 'yyyy-MM-dd HH:mm')$(if ($Simular) { '  [SIMULACIÓN: no se cambia nada]' })" -ForegroundColor Green
 Requisitos
@@ -490,6 +536,17 @@ foreach ($e in $Etapas) {
         Write-Host "que siga con la caja $($script:Estado.Id) leyendo $script:Caja. Lo aprendido se guarda luego como perfil nuevo."
         Avisar 'Firmware nuevo: el diagnóstico y el respaldo están listos. Hace falta seguir a mano.'
         Stop-Transcript | Out-Null; exit 0
+    }
+    # Sin -Desde, salta las etapas que la caja ya tiene hechas (en orden: a la primera que falte, sigue normal).
+    if (-not $Desde -and -not $script:Revisada -and $e -in 'limpieza', 'falsificaciones', 'fabrica') {
+        $falta = Falta-En-Caja $e
+        if (-not $falta) {
+            Info "Etapa '$e' ya está hecha en la caja (detectado): la salto (para repetirla: -Desde $e)."
+            if (-not $Simular) { $script:Estado.Hechas = @($script:Estado.Hechas | Where-Object { $_ -ne $e }) + $e; Guardar; Actualizar-Indice $e }
+            continue
+        }
+        Info "Etapa '$e' pendiente: $falta."
+        $script:Revisada = $true
     }
     Titulo "Etapa: $e"
     & "Etapa-$e"
