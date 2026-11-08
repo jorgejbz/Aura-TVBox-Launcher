@@ -26,6 +26,8 @@
     <string name="keys_entry">%1$s  →  %2$s</string>
     <string name="tile_info">Sistema</string>
     <string name="tile_info_desc">Datos reales del equipo</string>
+    <string name="tile_update">Actualizar</string>
+    <string name="tile_update_desc">Busca versiones nuevas de Aura y apps nuevas</string>
     <string name="info_title">Información del sistema</string>
     <string name="info_close">Cerrar</string>
     <string name="info_android">Android</string>

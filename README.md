@@ -1,4 +1,4 @@
-# Aura TV Box Launcher · v1.2.1
+# Aura TV Box Launcher · v1.2.2
 
 Convierte una TV Box Android genérica en un equipo limpio, honesto y minimalista:
 
@@ -150,12 +150,12 @@ Un formateo real es la prueba final: pide permiso y sigue la lista de comprobaci
 
 ## Aura
 Launcher Android nativo: Java, sin dependencias, Android 5.0+, ~65 KB.
-- Favoritas grandes, accesos (Archivos, Ajustes, Red, Botones, Sistema) y todas las apps sin repetidos.
+- Favoritas grandes, accesos (Archivos, Ajustes, Red, Botones, Sistema, Actualizar) y todas las apps sin repetidos.
 - Fondo que toma el color de la app enfocada; foco siempre visible; navegación sólo con flechas, OK, Atrás e Inicio.
 - **Botones**: asigna apps a botones del control (servicio de accesibilidad que sólo filtra teclas, no lee la pantalla).
 - **Sistema**: datos reales leídos del kernel, no del framework (que algunos firmwares falsifican), y estado real del
   ADB por red con un botón para cerrarlo o abrirlo.
-- **Actualizaciones**: *Buscar actualizaciones* en Sistema, y *Actualizaciones del sistema* en Ajustes cuando Aura es app
+- **Actualizaciones**: acceso *Actualizar* junto a Sistema (también *Buscar actualizaciones* dentro de Sistema), y *Actualizaciones del sistema* en Ajustes cuando Aura es app
   de sistema. Sólo consulta GitHub cuando lo pides y no envía datos de tu caja. Acepta sólo un APK con la firma de Aura y
   versión mayor. Con Aura en `/system/priv-app` basta *Descargar e instalar*; si no, Android pide confirmar.
 - **Apps nuevas**: una vez al día Aura revisa tu carpeta de apps en línea, que son los APK del release `apps` de este

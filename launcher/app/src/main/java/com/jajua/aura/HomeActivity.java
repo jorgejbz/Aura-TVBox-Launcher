@@ -359,6 +359,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
                 case "tile:settings": glyph = R.drawable.ic_settings; break;
                 case "tile:network": glyph = R.drawable.ic_network; break;
                 case "tile:keys": glyph = R.drawable.ic_remote; break;
+                case "tile:update": glyph = R.drawable.ic_update; break;
                 default: glyph = R.drawable.ic_info; break;
             }
             Card c = new Card(this, t, Ui.u(CELL_W), Ui.u(CELL_H), 12, false, getDrawable(glyph), this);
@@ -451,6 +452,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
                 getString(R.string.tile_keys_desc), null, false));
         tiles.add(new Entry("tile:info", null, getString(R.string.tile_info),
                 getString(R.string.tile_info_desc), null, false));
+        tiles.add(new Entry("tile:update", null, getString(R.string.tile_update),
+                getString(R.string.tile_update_desc), null, false));
         return tiles;
     }
 
@@ -546,6 +549,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
     public void onCardClicked(Card card) {
         if (card.entry.key.equals("tile:info")) showSystemInfo();
         else if (card.entry.key.equals("tile:keys")) showKeyMap();
+        else if (card.entry.key.equals("tile:update")) startActivity(new Intent(this, UpdateActivity.class));
         else launch(card.entry.intent, card.entry.label, card.face);
     }
 
