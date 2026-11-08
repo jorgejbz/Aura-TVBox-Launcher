@@ -1,4 +1,4 @@
-# Aura TV Box Launcher · v1.2
+# Aura TV Box Launcher · v1.2.1
 
 Convierte una TV Box Android genérica en un equipo limpio, honesto y minimalista:
 
@@ -177,6 +177,7 @@ Compilar: `cd launcher; .\gradlew.bat assembleRelease`.
 | `diagnostico.ps1` + `diag-remoto.sh` | Encuentra la caja, ADB real vs falso, datos reales vs anunciados, malware/proxy/puertas traseras. |
 | `respaldar.ps1` | Copia las particiones críticas con SHA-256. |
 | `fabrica.ps1` + `preinstall.sh` | Aura como app de sistema, tus apps en `/system/preinstall` (incluye APK divididos), animación de arranque y ajustes. |
+| `aura-a-sistema.ps1` | Pone la última Aura en `/system` de una caja ya lista (hace falta una vez si quedó con la 1.1 o anterior). |
 | `bootanimation.py` | Genera `bootanimation.zip`, la animación de arranque de Aura. |
 | `patch_javacore.py` | Quita la falsificación de almacenamiento de `libjavacore.so` (verifica los bytes; aborta si el build es otro). |
 | `patch_settings.py` | Quita los 4 GB / 32 GB falsos de `Settings` y `TvSettings` en firmwares Rockchip conocidos (ver `docs/04`). |

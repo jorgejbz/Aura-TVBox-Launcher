@@ -338,14 +338,18 @@ Tarda varios minutos, y las apps terminan al aparecer `/data/local/symbol_thirdp
 
 ## Actualizar Aura en una caja ya lista
 **No uses `fabrica.ps1`**: borra `/system/preinstall`. Desde la 1.1, Aura se actualiza en Sistema › *Buscar
-actualizaciones*, confirmando con el control. Esa actualización no cambia la copia de `/system`, que es la que vuelve
-tras un formateo. Para cambiarla, o con una caja que tenga la 1.0, a mano:
+actualizaciones*, confirmando con el control. Esa actualización queda en `/data`: no cambia la copia de `/system`, que
+es la que vuelve tras un formateo.
+
+Desde la 1.2, Aura instala sin la ventana de confirmación de Android (permiso `INSTALL_PACKAGES`), pero Android sólo
+le da ese permiso si **la copia de `/system`** lo pide. Por eso, una caja que quedó con la 1.1 o anterior en `/system`
+necesita **una vez** la Aura nueva en `/system`; después, las actualizaciones desde Aura ya conservan el permiso.
+Las cajas nuevas no lo necesitan: `preparar.ps1` usa siempre la última versión publicada.
 ```powershell
-adb -s <SERIE> install -r build\Aura.apk      # conserva favoritas y botones
-adb -s <SERIE> remount
-adb -s <SERIE> push build\Aura.apk /data/local/tmp/Aura.apk
-adb -s <SERIE> shell "cp /data/local/tmp/Aura.apk /system/priv-app/Aura/Aura.apk.new; chown root:root /system/priv-app/Aura/Aura.apk.new; chmod 644 /system/priv-app/Aura/Aura.apk.new; chcon u:object_r:system_file:s0 /system/priv-app/Aura/Aura.apk.new; mv /system/priv-app/Aura/Aura.apk.new /system/priv-app/Aura/Aura.apk; sync"
+.\scripts\aura-a-sistema.ps1 -Ip <IP>      # actualiza, copia a /system, reinicia y comprueba el permiso
 ```
+Conserva favoritas y botones. Aura no puede pasarse sola a `/system`: en Rockchip ni un script root logra remontarla
+(`Device or resource busy`); sólo `adb remount` desde la PC.
 No hagas `pm uninstall com.jajua.aura` si quieres conservar los datos.
 
 ## Publicar una versión de Aura

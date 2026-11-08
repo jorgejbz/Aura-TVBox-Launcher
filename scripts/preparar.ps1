@@ -231,6 +231,10 @@ function Bajar-Zip($url, $nombre) {
     return $tmp
 }
 function Python-Real { try { return ((& python -c 'print(3)' 2>$null | Out-String).Trim() -eq '3') } catch { return $false } }
+function Version-Apk($f) {
+    $l = & (Join-Path $script:BT 'aapt2.exe') dump badging $f 2>$null | Select-Object -First 1
+    if ("$l" -match "versionCode='(\d+)'") { return [int]$matches[1] }; return 0
+}
 function Apksigner-Funciona { cmd /c "`"$(Join-Path $script:BT 'apksigner.bat')`" --version >nul 2>nul"; return ($LASTEXITCODE -eq 0) }
 
 # Lo que falte en la PC se instala solo, sin Android Studio: adb y build-tools de Google, Java portátil de Adoptium
@@ -291,12 +295,17 @@ function Requisitos {
         python -m pip install --user -q --disable-pip-version-check capstone pyelftools
         python -c "import capstone, elftools" 2>$null; if ($LASTEXITCODE -ne 0) { Fallar 'No pude instalar capstone y pyelftools (pip install --user capstone pyelftools).' }
     }
+    # Aura va a /system: usa la versión publicada más nueva, salvo que build\Aura.apk sea más nuevo (recién compilado).
     $script:Aura = Join-Path $root 'build\Aura.apk'
-    if (-not (Test-Path $script:Aura)) {
-        Info 'No hay build\Aura.apk: lo bajo de la última versión publicada.'
-        New-Item -ItemType Directory -Force (Split-Path $script:Aura) | Out-Null
-        Invoke-WebRequest -UseBasicParsing 'https://github.com/jorgejbz/Aura-TVBox-Launcher/releases/latest/download/Aura.apk' -OutFile $script:Aura
+    New-Item -ItemType Directory -Force (Split-Path $script:Aura) | Out-Null
+    $ultima = Join-Path $env:TEMP 'Aura-ultima.apk'
+    try { Invoke-WebRequest -UseBasicParsing 'https://github.com/jorgejbz/Aura-TVBox-Launcher/releases/latest/download/Aura.apk' -OutFile $ultima }
+    catch { $ultima = $null; if (-not (Test-Path $script:Aura)) { Fallar "No pude bajar Aura de GitHub: $_" } }
+    if ($ultima -and (-not (Test-Path $script:Aura) -or (Version-Apk $ultima) -gt (Version-Apk $script:Aura))) {
+        Copy-Item $ultima $script:Aura -Force
+        Info "Aura: uso la última versión publicada (versionCode $(Version-Apk $script:Aura))."
     }
+    if ($ultima) { Remove-Item $ultima -ErrorAction SilentlyContinue }
     # Sólo se acepta el Aura firmado con la llave del proyecto.
     # Por cmd, para descartar los avisos de Java de apksigner sin que PowerShell los muestre como error.
     $cert = (cmd /c "`"$(Join-Path $script:BT 'apksigner.bat')`" verify --print-certs `"$script:Aura`" 2>nul" | Select-String 'SHA-256 digest: (\w+)' | Select-Object -First 1).Matches.Groups[1].Value

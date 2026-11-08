@@ -13,6 +13,7 @@ import org.json.JSONObject;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -123,9 +124,16 @@ final class AppsCatalog {
             last = Collections.emptyList();
             return last;
         }
-        JSONObject release = new JSONObject(new String(read(
-                "https://api.github.com/repos/" + part[0] + "/" + part[1] + "/releases/tags/" + part[2],
-                null), "UTF-8"));
+        JSONObject release;
+        try {
+            release = new JSONObject(new String(read(
+                    "https://api.github.com/repos/" + part[0] + "/" + part[1] + "/releases/tags/" + part[2],
+                    null), "UTF-8"));
+        } catch (FileNotFoundException e) {
+            // No folder yet (the release does not exist): nothing to offer, not a connection problem.
+            last = Collections.emptyList();
+            return last;
+        }
         JSONArray assets = release.getJSONArray("assets");
         PackageManager pm = c.getPackageManager();
         File dir = dir(c);
@@ -260,6 +268,7 @@ final class AppsCatalog {
             // GitHub rejects requests without a User-Agent; this one says nothing about the device.
             c.setRequestProperty("User-Agent", "Aura-Launcher");
             c.setRequestProperty("Accept", "application/vnd.github+json, application/octet-stream");
+            if (c.getResponseCode() == HttpURLConnection.HTTP_NOT_FOUND) throw new FileNotFoundException(url);
             if (c.getResponseCode() != HttpURLConnection.HTTP_OK) {
                 throw new IOException("HTTP " + c.getResponseCode());
             }
