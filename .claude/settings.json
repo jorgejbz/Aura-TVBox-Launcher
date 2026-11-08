@@ -1,0 +1,48 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit(scripts/**)",
+      "Edit(docs/**)",
+      "Edit(logs/**)",
+      "Edit(README.md)",
+      "Edit(CLAUDE.md)",
+      "Edit(Preparar-TVBox.bat)",
+      "Bash(adb *)",
+      "Bash(python *)",
+      "Bash(sleep *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(grep *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(iconv *)",
+      "Bash(wc *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "PowerShell(adb *)",
+      "PowerShell(python *)",
+      "PowerShell(powershell *)",
+      "PowerShell(Start-Process *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Select-String *)",
+      "PowerShell(Test-NetConnection *)",
+      "PowerShell(Test-Connection *)",
+      "PowerShell(Start-Sleep *)",
+      "PowerShell(.\\scripts\\*)",
+      "PowerShell(git status*)",
+      "PowerShell(git diff*)",
+      "PowerShell(git log*)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "PowerShell(git push*)",
+      "Bash(rm -rf *)",
+      "PowerShell(Remove-Item *)"
+    ]
+  }
+}
