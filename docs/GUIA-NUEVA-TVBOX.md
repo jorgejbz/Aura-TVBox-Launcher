@@ -31,6 +31,8 @@ firmware nuevo se detiene después del respaldo y hay que seguir esta guía a ma
 perfil nuevo: qué es malware, qué borrar de `/system`, qué valores de `build.prop` corregir y qué parches aplicar.
 Los registros de cada caja quedan en `logs\cajas\<ID>\`. Con un perfil conocido no pregunta nada (`-Preguntar` para
 confirmar cada bloque), avisa con voz y, si la verificación sale sin fallas, borra el respaldo de esa caja.
+En una PC sin nada instalado, el `.bat` suelto junto a la carpeta de apps (`fabrica-rk322x\`) baja el proyecto de GitHub
+e instala lo que falte del paso 1; ver README.
 
 ## 1. Preparar la PC (Windows)
 - Android Studio: trae `adb`, y en `build-tools` `aapt2`, `apksigner`, `zipalign` y `dexdump`.

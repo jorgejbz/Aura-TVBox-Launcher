@@ -202,17 +202,79 @@ function Conectar-Rapido {
 }
 
 # ------------------------------------------------------------------ etapas
+# Apps de fábrica: -Apks; si no, la carpeta del perfil dentro de AURA_APKS (el .bat suelto junto a las apps, p. ej. en
+# OneDrive); si no, la del proyecto (apks\...).
+function Carpeta-Apps($Perf) {
+    if ($Apks) { return $Apks }
+    if ($env:AURA_APKS) { return Join-Path $env:AURA_APKS (Split-Path $Perf.Apks -Leaf) }
+    return Join-Path $root $Perf.Apks
+}
+
+# Descarga y descomprime un .zip en una carpeta temporal nueva; devuelve esa carpeta.
+function Bajar-Zip($url, $nombre) {
+    Info "Bajando $nombre..."
+    $tmp = Join-Path $env:TEMP "aura-$nombre"
+    Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue; New-Item -ItemType Directory $tmp | Out-Null
+    $ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
+    try { Invoke-WebRequest -UseBasicParsing $url -OutFile (Join-Path $tmp 'd.zip'); Expand-Archive (Join-Path $tmp 'd.zip') $tmp }
+    catch { Fallar "No pude bajar $nombre ($url): $_" }
+    return $tmp
+}
+function Python-Real { try { return ((& python -c 'print(3)' 2>$null | Out-String).Trim() -eq '3') } catch { return $false } }
+function Apksigner-Funciona { cmd /c "`"$(Join-Path $script:BT 'apksigner.bat')`" --version >nul 2>nul"; return ($LASTEXITCODE -eq 0) }
+
+# Lo que falte en la PC se instala solo, sin Android Studio: adb y build-tools de Google, Java portátil de Adoptium
+# (sólo si apksigner no arranca) y Python de python.org.
 function Requisitos {
     Titulo 'Requisitos de la PC'
+    $sdk = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
+    $pt = Join-Path $sdk 'platform-tools'
     if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
-        $pt = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools'
-        if (Test-Path (Join-Path $pt 'adb.exe')) { $env:Path = "$pt;$env:Path" } else { Fallar 'No encuentro adb: instala Android Studio (guía, paso 1).' }
+        if (-not (Test-Path (Join-Path $pt 'adb.exe'))) {
+            $d = Bajar-Zip 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' 'platform-tools'
+            New-Item -ItemType Directory -Force $sdk | Out-Null
+            Move-Item (Join-Path $d 'platform-tools') $pt; Remove-Item -Recurse -Force $d
+        }
+        $env:Path = "$pt;$env:Path"
     }
-    $bt = Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Android\Sdk\build-tools') -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } | Select-Object -Last 1
-    if (-not $bt) { Fallar 'Faltan las build-tools del SDK de Android (zipalign, aapt2, apksigner).' }
+    $btDir = Join-Path $sdk 'build-tools'
+    $buscarBt = { Get-ChildItem $btDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' -and (Test-Path (Join-Path $_.FullName 'aapt2.exe')) } |
+        Sort-Object { [version]$_.Name } | Select-Object -Last 1 }
+    $bt = & $buscarBt
+    if (-not $bt) {
+        $d = Bajar-Zip 'https://dl.google.com/android/repository/build-tools_r34-windows.zip' 'build-tools'
+        $dentro = Get-ChildItem $d -Recurse -Filter aapt2.exe | Select-Object -First 1
+        if (-not $dentro) { Fallar 'El zip de build-tools no trae aapt2.exe.' }
+        New-Item -ItemType Directory -Force $btDir | Out-Null
+        Move-Item $dentro.DirectoryName (Join-Path $btDir '34.0.0'); Remove-Item -Recurse -Force $d
+        $bt = & $buscarBt
+    }
     $script:BT = $bt.FullName; Info "build-tools: $($bt.Name)"
-    if (-not (Get-Command python -ErrorAction SilentlyContinue)) { Fallar 'Falta Python 3 (python.org) en el PATH.' }
+    $jre = Join-Path $sdk 'aura-jre'
+    if (Test-Path (Join-Path $jre 'bin\java.exe')) { $env:JAVA_HOME = $jre; $env:Path = "$jre\bin;$env:Path" }
+    if (-not (Apksigner-Funciona)) {
+        $d = Bajar-Zip 'https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse' 'java'
+        $dentro = Get-ChildItem $d -Recurse -Filter java.exe | Where-Object { $_.Directory.Name -eq 'bin' } | Select-Object -First 1
+        if (-not $dentro) { Fallar 'El zip de Java no trae bin\java.exe.' }
+        Remove-Item -Recurse -Force $jre -ErrorAction SilentlyContinue
+        Move-Item $dentro.Directory.Parent.FullName $jre; Remove-Item -Recurse -Force $d
+        $env:JAVA_HOME = $jre; $env:Path = "$jre\bin;$env:Path"
+        if (-not (Apksigner-Funciona)) { Fallar 'apksigner no arranca ni con el Java portátil.' }
+    }
+    $py = Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312'
+    if (-not (Python-Real) -and (Test-Path (Join-Path $py 'python.exe'))) { $env:Path = "$py;$py\Scripts;$env:Path" }
+    if (-not (Python-Real)) {
+        # El "python" de WindowsApps es un acceso a la Tienda, no Python: por eso se prueba ejecutándolo.
+        Info 'Instalando Python 3.12 (sólo para este usuario)...'
+        $exe = Join-Path $env:TEMP 'aura-python.exe'
+        $ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
+        try { Invoke-WebRequest -UseBasicParsing 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe' -OutFile $exe }
+        catch { Fallar "No pude bajar Python: $_" }
+        Start-Process $exe -Wait -ArgumentList '/quiet', 'InstallAllUsers=0', 'PrependPath=1', 'Include_test=0', 'Include_launcher=0'
+        Remove-Item -Force $exe -ErrorAction SilentlyContinue
+        $env:Path = "$py;$py\Scripts;$env:Path"
+        if (-not (Python-Real)) { Fallar 'No pude instalar Python 3 (instálalo de python.org marcando "Add to PATH").' }
+    }
     python -c "import capstone, elftools" 2>$null
     if ($LASTEXITCODE -ne 0) {
         Info 'Instalando capstone y pyelftools para Python...'
@@ -280,7 +342,7 @@ function Etapa-limpieza {
         "  - Reiniciar dos veces`n  Respaldo: $($script:Estado.Respaldo)")
     $copias = if ($script:Estado.Respaldo) { Join-Path $script:Estado.Respaldo 'data-apps' } else { '(sin respaldo)' }
     # Tus apps (las de la carpeta de fabrica.ps1) se reinstalan al final: no son sospechosas.
-    $dirApps = if ($Apks) { $Apks } else { Join-Path $root $Perf.Apks }
+    $dirApps = Carpeta-Apps $Perf
     $tuyas = @(Paquetes-De-Apks $dirApps)
     Cambio 'Instalar Aura temporal y ponerla de inicio' {
         adb -s $script:S install -r $script:Aura 2>&1 | Out-Null
@@ -369,7 +431,7 @@ function Etapa-falsificaciones {
 
 function Etapa-fabrica {
     $Perf = $script:Perfil
-    if (-not $Apks) { $script:Apks = Join-Path $root $Perf.Apks } else { $script:Apks = $Apks }
+    $script:Apks = Carpeta-Apps $Perf
     if (-not (Get-ChildItem $script:Apks -Recurse -Filter *.apk -ErrorAction SilentlyContinue)) { Fallar "No hay APK en $script:Apks (ver guía, paso 1)." }
     if ((Sh 'pm path com.jajua.aura') -match '/data/app') { Cambio 'Quitar el Aura temporal (queda la de sistema)' { Sh 'pm uninstall com.jajua.aura' | Out-Null } }
     $a = @{ Serial = $script:S; Apks = $script:Apks; Idioma = $Idioma; ZonaHoraria = $ZonaHoraria; SinConfirmar = $true }
@@ -401,7 +463,7 @@ function Etapa-formateo {
 function Etapa-verificacion {
     Cambio 'Quitar archivos temporales de la caja' { Sh 'rm -f /data/local/tmp/diag-remoto.sh /data/local/tmp/*.new /data/local/tmp/*.apk' | Out-Null }
     $a = @{ Serial = $script:S; Perfil = $script:Perfil.Archivo; Carpeta = $script:Caja }
-    if (-not $Apks) { $a.Apks = Join-Path $root $script:Perfil.Apks } else { $a.Apks = $Apks }
+    $a.Apks = Carpeta-Apps $script:Perfil
     if (-not $SinYoutube) { $a.Youtube = $true }
     & (Join-Path $PSScriptRoot 'verificar.ps1') @a
     $script:VerificacionOk = ($LASTEXITCODE -eq 0)

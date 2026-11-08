@@ -70,6 +70,10 @@ audio 5.1 y estéreo).
 - **Cada caja tiene un ID** sacado de su hardware, por ejemplo `RK3228A-1a2b3c4d`. Todo queda en
   `logs\cajas\<ID>\`: registro completo, diagnóstico, verificación, ficha y estado. Si algo se detiene, al abrir de
   nuevo el `.bat` sigue desde esa etapa. `logs\cajas\indice.csv` lista todas las cajas.
+- **En otra PC sin nada instalado:** basta el `.bat` suelto dentro de la carpeta de las apps de fábrica (la que tiene
+  `fabrica-rk322x\`, por ejemplo en OneDrive). Baja este proyecto de GitHub a `%LOCALAPPDATA%\Aura-TVBox` y lo
+  actualiza cada vez; instala solo lo que falte (adb y build-tools de Google, Java portátil, Python). No hace falta
+  Android Studio. `set AURA_APKS=<carpeta>` usa otra carpeta de apps; `set AURA_SIN_ACTUALIZAR=1` no actualiza.
 - `scripts\preparar.ps1 -Ip <IP> -Simular` muestra lo que haría sin cambiar nada, y `scripts\verificar.ps1` repite la
   verificación cuando quieras.
 

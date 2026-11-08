@@ -7,6 +7,10 @@ El proceso automático es `Preparar-TVBox.bat` → `scripts/preparar.ps1` (perfi
 ## Modo vigilante
 Se activa cuando `Preparar-TVBox.bat` abre esta sesión, o cuando el usuario dice "vigila la preparación".
 
+Si esta carpeta es `%LOCALAPPDATA%\Aura-TVBox` (el `.bat` suelto, junto a las apps en OneDrive), es una copia bajada de
+GitHub que el `.bat` sobrescribe en cada arranque: los arreglos que hagas aquí se pierden. Hazlos para que funcione
+esta vez y dile al usuario qué cambiar en el repo. Las apps vienen de `AURA_APKS` (ver `Carpeta-Apps` en preparar.ps1).
+
 1. **Encuentra la ejecución en curso:** el registro más reciente es `logs/preparar-*.log` (antes de conocer la caja) o
    `logs/cajas/<ID>/preparar-*.log`. `logs/cajas/indice.csv` lista las cajas; `logs/cajas/<ID>/estado.json` dice qué
    etapas están hechas, la IP (`Serie`) y el respaldo.
