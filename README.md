@@ -1,4 +1,4 @@
-# Aura TV Box Launcher · v1.2.2
+# Aura TV Box Launcher · v1.3
 
 Convierte una TV Box Android genérica en un equipo limpio, honesto y minimalista:
 
@@ -163,8 +163,10 @@ Launcher Android nativo: Java, sin dependencias, Android 5.0+, ~65 KB.
   *Nuevas apps disponibles, ¿le gustaría instalarlas?* y las instala una por una (con Aura de sistema, sin otra ventana de confirmación). Sólo
   avisa una vez de cada APK; también se busca a mano en Sistema › *Buscar actualizaciones* › *Buscar apps nuevas*. Cada
   APK nuevo se descarga una vez para saber qué app es. No envía datos de la caja. Otra carpeta:
-  `apps.release=dueño/repo/etiqueta` en `defaults.properties`, o `apps.release=off` para apagarlo. Sólo admite APK
-  sueltos (no apps divididas como YouTube), y lo instalado así no vuelve tras un formateo: para eso, `fabrica.ps1`.
+  `apps.release=dueño/repo/etiqueta` en `defaults.properties`, o `apps.release=off` para apagarlo. Una app dividida
+  (`base.apk` + `split_config…apk`, como YouTube) se sube como un solo `.zip`, `.apks` o `.xapk` con sus APK dentro: Aura
+  instala la base, todas las partes de idioma y resolución, y sólo la parte de procesador que sirve a la caja
+  (`armeabi_v7a` en estas cajas). Lo instalado así no vuelve tras un formateo: para eso, `fabrica.ps1`.
 - Como app de sistema (`/system/priv-app`) recupera favoritas y botones desde `/system/etc/aura/defaults.properties`.
 
 Compilar: `cd launcher; .\gradlew.bat assembleRelease`.

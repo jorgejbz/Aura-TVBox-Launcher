@@ -102,11 +102,11 @@ public final class AppsActivity extends Activity {
         status(getString(R.string.apps_downloading, o.label), false);
         worker.execute(() -> {
             try {
-                File apk = AppsCatalog.fetch(getApplicationContext(), o);
+                List<File> apks = AppsCatalog.fetch(getApplicationContext(), o);
                 ui(() -> status(getString(R.string.apps_installing, o.label), false));
                 // The "Instalar" pressed in Aura is the confirmation: no second screen when Aura is a system app.
-                Installer.install(this, apk, o.pkg, ok -> ui(() -> {
-                    apk.delete();
+                Installer.install(this, apks, o.pkg, ok -> ui(() -> {
+                    AppsCatalog.discard(getApplicationContext(), o);
                     if (ok) installed++;
                     else Toast.makeText(this, getString(R.string.apps_failed, o.label), Toast.LENGTH_LONG).show();
                     next();

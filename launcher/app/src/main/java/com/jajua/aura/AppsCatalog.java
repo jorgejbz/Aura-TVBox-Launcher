@@ -13,6 +13,7 @@ import org.json.JSONObject;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -24,10 +25,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * The owner's app folder online: the APKs attached to a GitHub release (by default the "apps" release
@@ -59,9 +64,11 @@ final class AppsCatalog {
         final String versionName;
         final long versionCode;
         final boolean update;
+        /** A split app: a .zip/.apks/.xapk holding base.apk and its split APKs. */
+        final boolean bundle;
 
         Offer(long assetId, String key, String url, String pkg, String label, String versionName,
-              long versionCode, boolean update) {
+              long versionCode, boolean update, boolean bundle) {
             this.assetId = assetId;
             this.key = key;
             this.url = url;
@@ -70,17 +77,24 @@ final class AppsCatalog {
             this.versionName = versionName;
             this.versionCode = versionCode;
             this.update = update;
+            this.bundle = bundle;
         }
 
         File file(Context c) {
-            return new File(dir(c), fileName(assetId));
+            return new File(dir(c), fileName(assetId, bundle));
         }
     }
 
     private AppsCatalog() {}
 
-    static String fileName(long assetId) {
-        return "app-" + assetId + ".apk";
+    static String fileName(long assetId, boolean bundle) {
+        return "app-" + assetId + (bundle ? ".zip" : ".apk");
+    }
+
+    /** Split apps are uploaded as one archive with all their APKs inside. */
+    static boolean isBundle(String name) {
+        String n = name.toLowerCase(Locale.ROOT);
+        return n.endsWith(".apks") || n.endsWith(".xapk") || n.endsWith(".zip");
     }
 
     static File dir(Context c) {
@@ -145,17 +159,21 @@ final class AppsCatalog {
         for (int i = 0; i < assets.length(); i++) {
             JSONObject a = assets.getJSONObject(i);
             String name = a.optString("name", "");
-            if (!name.toLowerCase(Locale.ROOT).endsWith(".apk") || a.optLong("size") > MAX_APK_BYTES) continue;
+            boolean bundle = isBundle(name);
+            if (!(bundle || name.toLowerCase(Locale.ROOT).endsWith(".apk")) || a.optLong("size") > MAX_APK_BYTES) {
+                continue;
+            }
             long id = a.getLong("id");
             String key = id + ":" + a.optString("updated_at", "");
             String url = a.getString("browser_download_url");
             metaKeys.add(META + key);
-            File f = new File(dir, fileName(id));
+            File f = new File(dir, fileName(id, bundle));
 
             String meta = prefs.getString(META + key, null);
             if (meta == null) {
                 download(url, f);
-                meta = describe(pm, f);
+                meta = describe(c, f, bundle);
+                if ("-".equals(meta)) f.delete();
                 prefs.edit().putString(META + key, meta).apply();
             }
             // pkg \t versionCode \t versionName \t label \t signer; "-" when the file is not an app.
@@ -175,13 +193,13 @@ final class AppsCatalog {
                 update = false;
             }
             if (pkg.equals(c.getPackageName())) continue; // Aura updates itself from its own release.
-            offers.add(new Offer(id, key, url, pkg, m[3], m[2], code, update));
+            offers.add(new Offer(id, key, url, pkg, m[3], m[2], code, update, bundle));
             keepFiles.add(f.getName());
         }
 
         // Forget files and notes about APKs that are gone from the folder or not worth offering.
         File[] files = dir.listFiles();
-        if (files != null) for (File f : files) if (!keepFiles.contains(f.getName())) f.delete();
+        if (files != null) for (File f : files) if (!keepFiles.contains(f.getName())) deleteTree(f);
         SharedPreferences.Editor e = prefs.edit();
         for (String k : prefs.getAll().keySet()) if (k.startsWith(META) && !metaKeys.contains(k)) e.remove(k);
         e.apply();
@@ -191,27 +209,142 @@ final class AppsCatalog {
         return last;
     }
 
-    /** The APK ready to install: downloads it again if the cache was cleared, and re-checks it. */
-    static File fetch(Context c, Offer o) throws IOException {
+    /**
+     * The APKs ready to install (base first): downloads again if the cache was cleared, unpacks a split
+     * app keeping only the parts this box can use, and re-checks the app. {@link #discard} cleans up.
+     */
+    static List<File> fetch(Context c, Offer o) throws IOException {
         File f = o.file(c);
         if (!f.isFile()) {
             File dir = dir(c);
             if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("no cache dir");
             download(o.url, f);
         }
-        String[] m = describe(c.getPackageManager(), f).split("\t", -1);
+        List<File> apks = o.bundle ? choose(unpack(f, work(f))) : Collections.singletonList(f);
+        String[] m = apks == null ? new String[0] : describeApk(c.getPackageManager(), apks.get(0)).split("\t", -1);
         if (m.length < 5 || !m[0].equals(o.pkg) || Long.parseLong(m[1]) != o.versionCode) {
-            f.delete();
+            discard(c, o);
             throw new IOException("the file changed on GitHub");
         }
-        return f;
+        return apks;
+    }
+
+    /** Deletes what {@link #fetch} left in the cache for this offer. */
+    static void discard(Context c, Offer o) {
+        File f = o.file(c);
+        deleteTree(work(f));
+        f.delete();
+    }
+
+    private static String describe(Context c, File f, boolean bundle) throws IOException {
+        if (!bundle) return describeApk(c.getPackageManager(), f);
+        File work = work(f);
+        try {
+            List<File> apks = choose(unpack(f, work));
+            // No base APK, or only processor parts for other boxes (e.g. arm64 on a 32-bit box).
+            return apks == null ? "-" : describeApk(c.getPackageManager(), apks.get(0));
+        } finally {
+            deleteTree(work);
+        }
+    }
+
+    private static File work(File archive) {
+        return new File(archive.getPath() + ".d");
+    }
+
+    /** Every .apk inside the archive, by file name only (paths inside the archive are ignored). */
+    private static List<File> unpack(File archive, File work) throws IOException {
+        deleteTree(work);
+        if (!work.mkdirs()) throw new IOException("no work dir");
+        List<File> out = new ArrayList<>();
+        long total = 0;
+        try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(new FileInputStream(archive)))) {
+            ZipEntry e;
+            byte[] buffer = new byte[65536];
+            while ((e = zip.getNextEntry()) != null) {
+                String name = new File(e.getName()).getName();
+                if (e.isDirectory() || !name.toLowerCase(Locale.ROOT).endsWith(".apk")) continue;
+                File to = new File(work, out.size() + "-" + name.replaceAll("[^A-Za-z0-9._-]", "_"));
+                try (OutputStream o = new FileOutputStream(to)) {
+                    int n;
+                    while ((n = zip.read(buffer)) > 0) {
+                        total += n;
+                        if (total > 2 * MAX_APK_BYTES) throw new IOException("archive too large");
+                        o.write(buffer, 0, n);
+                    }
+                }
+                out.add(to);
+            }
+        }
+        return out;
+    }
+
+    private static final String[] ABIS = {"arm64_v8a", "armeabi_v7a", "x86_64", "x86", "armeabi", "mips64", "mips"};
+
+    /** The processor a split is for, as Android names it ("armeabi-v7a"), or null for other splits. */
+    private static String abiOf(String fileName) {
+        String n = fileName.toLowerCase(Locale.ROOT).replace('-', '_');
+        if (!n.contains("config.") && !n.contains("split")) return null;
+        for (String abi : ABIS) {
+            if (n.contains("." + abi + ".") || n.endsWith("." + abi + ".apk") || n.contains("_" + abi + ".apk")) {
+                return abi.replace('_', '-');
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Base APK first, then every language/density split and the one processor split that fits this box
+     * best. Null when there is no base or no processor split fits.
+     */
+    @SuppressWarnings("deprecation")
+    private static List<File> choose(List<File> apks) {
+        File base = null;
+        for (File f : apks) if (f.getName().replaceFirst("^\\d+-", "").equalsIgnoreCase("base.apk")) base = f;
+        if (base == null) {
+            // No "base.apk": the largest APK that is not named as a split.
+            for (File f : apks) {
+                String n = f.getName().toLowerCase(Locale.ROOT);
+                if (n.contains("split") || n.contains("config.")) continue;
+                if (base == null || f.length() > base.length()) base = f;
+            }
+        }
+        if (base == null) return null;
+        List<File> out = new ArrayList<>();
+        out.add(base);
+        Map<String, File> byAbi = new HashMap<>();
+        for (File f : apks) {
+            if (f == base) continue;
+            String abi = abiOf(f.getName());
+            if (abi == null) out.add(f);
+            else byAbi.put(abi, f);
+        }
+        if (!byAbi.isEmpty()) {
+            String[] supported = android.os.Build.VERSION.SDK_INT >= 21 ? android.os.Build.SUPPORTED_ABIS
+                    : new String[] {android.os.Build.CPU_ABI, android.os.Build.CPU_ABI2};
+            File pick = null;
+            for (String abi : supported) {
+                if (abi != null && byAbi.containsKey(abi)) {
+                    pick = byAbi.get(abi);
+                    break;
+                }
+            }
+            if (pick == null) return null;
+            out.add(pick);
+        }
+        return out;
+    }
+
+    private static void deleteTree(File f) {
+        File[] children = f.listFiles();
+        if (children != null) for (File child : children) deleteTree(child);
+        f.delete();
     }
 
     @SuppressWarnings("deprecation")
-    private static String describe(PackageManager pm, File f) {
+    private static String describeApk(PackageManager pm, File f) {
         PackageInfo pi = pm.getPackageArchiveInfo(f.getPath(), PackageManager.GET_SIGNATURES);
         if (pi == null || pi.applicationInfo == null) {
-            f.delete();
             return "-";
         }
         // Without these the label of an uninstalled APK cannot be read.

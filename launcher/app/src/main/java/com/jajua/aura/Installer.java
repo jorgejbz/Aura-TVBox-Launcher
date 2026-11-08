@@ -14,6 +14,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 
 /**
  * Installs an APK with a PackageInstaller session. As a privileged system app Aura holds
@@ -34,7 +35,7 @@ final class Installer {
      * Call from a worker thread (it copies the APK). {@code cb} gets one answer per APK, on any thread
      * (unless Aura replaces itself, which ends this process).
      */
-    static void install(Activity a, File apk, String pkg, Callback cb) {
+    static void install(Activity a, List<File> apks, String pkg, Callback cb) {
         final String action = ACTION + "." + (++sequence);
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
@@ -67,17 +68,23 @@ final class Installer {
         PackageInstaller.SessionParams params =
                 new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
         params.setAppPackageName(pkg);
-        params.setSize(apk.length());
+        long size = 0;
+        for (File apk : apks) size += apk.length();
+        params.setSize(size);
         PackageInstaller.Session session = null;
         try {
             int id = pi.createSession(params);
             session = pi.openSession(id);
-            try (InputStream in = new FileInputStream(apk);
-                 OutputStream out = session.openWrite("base.apk", 0, apk.length())) {
-                byte[] buffer = new byte[65536];
-                int n;
-                while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
-                session.fsync(out);
+            // A split app goes in as several APKs of one session (base first); names only need to be unique.
+            for (int i = 0; i < apks.size(); i++) {
+                File apk = apks.get(i);
+                try (InputStream in = new FileInputStream(apk);
+                     OutputStream out = session.openWrite(i + ".apk", 0, apk.length())) {
+                    byte[] buffer = new byte[65536];
+                    int n;
+                    while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
+                    session.fsync(out);
+                }
             }
             // The system fills in the result extras, so the PendingIntent must be mutable on Android 12+.
             int flags = PendingIntent.FLAG_UPDATE_CURRENT
