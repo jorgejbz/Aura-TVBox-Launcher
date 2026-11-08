@@ -64,6 +64,8 @@
     <string name="apps_kind_new">nueva</string>
     <string name="apps_kind_update">actualización</string>
     <string name="apps_downloading">Descargando %1$s…</string>
+    <string name="apps_installing">Instalando %1$s…</string>
+    <string name="update_installing">Instalando la actualización…</string>
     <string name="apps_failed">No se pudo instalar %1$s.</string>
     <string name="apps_done">Apps instaladas: %1$d</string>
     <string name="opt_add_fav">Añadir a Favoritas</string>

@@ -9,6 +9,11 @@
     <!-- GitHub only: a newer Aura when the user asks, and the owner's app folder once a day. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Only granted to a privileged system app: installs after Aura's own "Instalar", without a
+         second confirmation screen. Without it Android asks as usual. -->
+    <uses-permission
+        android:name="android.permission.INSTALL_PACKAGES"
+        tools:ignore="ProtectedPermissions" />
     <!-- Lets "Desinstalar" open the standard system uninstall dialog. -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- Only granted when Aura is a privileged system app: re-enables the button service after a reset. -->
@@ -79,12 +84,6 @@
             android:exported="false"
             android:label="@string/apps_title"
             android:theme="@style/Theme.Aura.Transparent" />
-
-        <provider
-            android:name=".InstallProvider"
-            android:authorities="com.jajua.aura.install"
-            android:exported="false"
-            android:grantUriPermissions="true" />
 
         <service
             android:name=".KeyMapService"

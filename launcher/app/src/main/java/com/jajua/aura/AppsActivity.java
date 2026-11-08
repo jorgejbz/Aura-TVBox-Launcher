@@ -2,9 +2,6 @@ package com.jajua.aura;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Intent;
-import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.widget.Toast;
 
@@ -24,13 +21,11 @@ import java.util.concurrent.Executors;
  */
 public final class AppsActivity extends Activity {
     static final String EXTRA_MANUAL = "manual";
-    private static final int REQUEST_INSTALL = 1;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final List<AppsCatalog.Offer> queue = new ArrayList<>();
     private AlertDialog dialog;
     private boolean manual;
-    private File installing;
     private int installed;
 
     @Override
@@ -108,7 +103,14 @@ public final class AppsActivity extends Activity {
         worker.execute(() -> {
             try {
                 File apk = AppsCatalog.fetch(getApplicationContext(), o);
-                ui(() -> install(apk, o));
+                ui(() -> status(getString(R.string.apps_installing, o.label), false));
+                // The "Instalar" pressed in Aura is the confirmation: no second screen when Aura is a system app.
+                Installer.install(this, apk, o.pkg, ok -> ui(() -> {
+                    apk.delete();
+                    if (ok) installed++;
+                    else Toast.makeText(this, getString(R.string.apps_failed, o.label), Toast.LENGTH_LONG).show();
+                    next();
+                }));
             } catch (IOException | RuntimeException e) {
                 ui(() -> {
                     Toast.makeText(this, getString(R.string.apps_failed, o.label), Toast.LENGTH_LONG).show();
@@ -116,42 +118,6 @@ public final class AppsActivity extends Activity {
                 });
             }
         });
-    }
-
-    @SuppressWarnings("deprecation")
-    private void install(File apk, AppsCatalog.Offer o) {
-        close();
-        Uri uri;
-        if (Build.VERSION.SDK_INT >= 24) {
-            uri = InstallProvider.uri(this, apk.getName());
-        } else {
-            // Before Android 7 the system installer only reads world-readable file:// paths.
-            apk.setReadable(true, false);
-            apk.getParentFile().setExecutable(true, false);
-            uri = Uri.fromFile(apk);
-        }
-        installing = apk;
-        try {
-            startActivityForResult(new Intent(Intent.ACTION_INSTALL_PACKAGE)
-                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                    .putExtra(Intent.EXTRA_RETURN_RESULT, true)
-                    // Honoured only for a system app like Aura: the box's owner chose these apps.
-                    .putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), REQUEST_INSTALL);
-        } catch (RuntimeException e) {
-            Toast.makeText(this, getString(R.string.apps_failed, o.label), Toast.LENGTH_LONG).show();
-            next();
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int request, int result, Intent data) {
-        super.onActivityResult(request, result, data);
-        if (request != REQUEST_INSTALL) return;
-        if (result == RESULT_OK) installed++;
-        if (installing != null) installing.delete();
-        installing = null;
-        next();
     }
 
     private void status(String message, boolean closable) {

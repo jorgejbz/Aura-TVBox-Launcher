@@ -6,8 +6,6 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
-import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 
 import org.json.JSONArray;
@@ -30,7 +28,7 @@ import java.util.concurrent.Executors;
 /**
  * Checks GitHub for a newer Aura, only when the user asks ("Actualizaciones del sistema" in the
  * system settings, or Aura > Sistema). Sends nothing about the device. The APK must have Aura's
- * package name, a higher version and the same signing key, and Android asks before installing.
+ * package name, a higher version and the same signing key, and "Descargar e instalar" is the only confirmation when Aura is a privileged system app.
  */
 public final class UpdateActivity extends Activity {
     private static final String LATEST =
@@ -147,7 +145,7 @@ public final class UpdateActivity extends Activity {
     }
 
     private void download(String url) {
-        File apk = InstallProvider.apkFile(this);
+        File apk = new File(getCacheDir(), "Aura-update.apk");
         try {
             byte[] bytes = read(url);
             try (OutputStream out = new FileOutputStream(apk)) {
@@ -158,7 +156,13 @@ public final class UpdateActivity extends Activity {
                 ui(() -> status(getString(R.string.update_title), getString(R.string.update_invalid), true));
                 return;
             }
-            ui(() -> install(apk));
+            ui(() -> status(getString(R.string.update_title), getString(R.string.update_installing), false));
+            // "Descargar e instalar" is the confirmation: as a system app Aura replaces itself without a
+            // second screen (and this process ends). Otherwise Android shows its own confirmation.
+            Installer.install(this, apk, getPackageName(), ok -> ui(() -> {
+                if (ok) finish();
+                else status(getString(R.string.update_title), getString(R.string.update_error), true);
+            }));
         } catch (IOException | PackageManager.NameNotFoundException e) {
             apk.delete();
             ui(() -> status(getString(R.string.update_title), getString(R.string.update_error), true));
@@ -179,26 +183,6 @@ public final class UpdateActivity extends Activity {
         return a != null && b != null && Arrays.equals(a, b);
     }
 
-    private void install(File apk) {
-        close();
-        Uri uri;
-        if (Build.VERSION.SDK_INT >= 24) {
-            uri = InstallProvider.uri(this);
-        } else {
-            // Before Android 7 the system installer only reads world-readable file:// paths.
-            apk.setReadable(true, false);
-            apk.getParentFile().setExecutable(true, false);
-            uri = Uri.fromFile(apk);
-        }
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK));
-            finish();
-        } catch (RuntimeException e) {
-            status(getString(R.string.update_title), getString(R.string.update_error), true);
-        }
-    }
 
     private static byte[] read(String url) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
