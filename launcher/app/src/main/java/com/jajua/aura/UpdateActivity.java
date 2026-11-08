@@ -62,8 +62,7 @@ public final class UpdateActivity extends Activity {
             String version = release.getString("tag_name").replaceFirst("^[vV]", "");
             String current = installed().versionName;
             if (!isNewer(version, current)) {
-                ui(() -> status(getString(R.string.update_title),
-                        getString(R.string.update_none, current), true));
+                ui(() -> upToDate(current));
                 return;
             }
             String url = assetUrl(release.getJSONArray("assets"));
@@ -72,6 +71,23 @@ public final class UpdateActivity extends Activity {
         } catch (IOException | JSONException | PackageManager.NameNotFoundException e) {
             ui(() -> status(getString(R.string.update_title), getString(R.string.update_error), true));
         }
+    }
+
+    /** Aura is current: offer to look for new apps in the online folder too. */
+    private void upToDate(String current) {
+        close();
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle(R.string.update_title)
+                .setMessage(getString(R.string.update_none, current))
+                .setPositiveButton(R.string.info_close, (d, w) -> finish())
+                .setOnCancelListener(d -> finish());
+        if (AppsCatalog.source() != null) {
+            b.setNeutralButton(R.string.apps_check, (d, w) -> {
+                startActivity(new Intent(this, AppsActivity.class).putExtra(AppsActivity.EXTRA_MANUAL, true));
+                finish();
+            });
+        }
+        dialog = b.show();
     }
 
     private static String assetUrl(JSONArray assets) throws JSONException {

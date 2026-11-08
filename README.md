@@ -158,6 +158,13 @@ Launcher Android nativo: Java, sin dependencias, Android 5.0+, ~65 KB.
 - **Actualizaciones**: *Buscar actualizaciones* en Sistema, y *Actualizaciones del sistema* en Ajustes cuando Aura es app
   de sistema. Sólo consulta GitHub cuando lo pides y no envía datos de tu caja. Acepta sólo un APK con la firma de Aura y
   versión mayor, y Android pide confirmar antes de instalar.
+- **Apps nuevas**: una vez al día Aura revisa tu carpeta de apps en línea, que son los APK del release `apps` de este
+  repositorio. Si subes un APK de una app que la caja no tiene, o una versión más nueva de una que ya tiene, avisa
+  *Nuevas apps disponibles, ¿le gustaría instalarlas?* y las instala una por una con el instalador de Android. Sólo
+  avisa una vez de cada APK; también se busca a mano en Sistema › *Buscar actualizaciones* › *Buscar apps nuevas*. Cada
+  APK nuevo se descarga una vez para saber qué app es. No envía datos de la caja. Otra carpeta:
+  `apps.release=dueño/repo/etiqueta` en `defaults.properties`, o `apps.release=off` para apagarlo. Sólo admite APK
+  sueltos (no apps divididas como YouTube), y lo instalado así no vuelve tras un formateo: para eso, `fabrica.ps1`.
 - Como app de sistema (`/system/priv-app`) recupera favoritas y botones desde `/system/etc/aura/defaults.properties`.
 
 Compilar: `cd launcher; .\gradlew.bat assembleRelease`.

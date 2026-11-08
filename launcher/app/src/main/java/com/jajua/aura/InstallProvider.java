@@ -22,7 +22,12 @@ public final class InstallProvider extends ContentProvider {
     }
 
     static Uri uri(Context c) {
-        return Uri.parse("content://" + c.getPackageName() + ".install/" + NAME);
+        return uri(c, NAME);
+    }
+
+    /** Also serves the apps from the online folder (AppsCatalog), by their cache file name. */
+    static Uri uri(Context c, String name) {
+        return Uri.parse("content://" + c.getPackageName() + ".install/" + name);
     }
 
     @Override
@@ -32,8 +37,12 @@ public final class InstallProvider extends ContentProvider {
 
     @Override
     public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
-        if (!NAME.equals(uri.getLastPathSegment())) throw new FileNotFoundException(uri.toString());
-        return ParcelFileDescriptor.open(apkFile(getContext()), ParcelFileDescriptor.MODE_READ_ONLY);
+        String name = uri.getLastPathSegment();
+        File f;
+        if (NAME.equals(name)) f = apkFile(getContext());
+        else if (name != null && name.matches("app-\\d+\\.apk")) f = new File(AppsCatalog.dir(getContext()), name);
+        else throw new FileNotFoundException(uri.toString());
+        return ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY);
     }
 
     @Override

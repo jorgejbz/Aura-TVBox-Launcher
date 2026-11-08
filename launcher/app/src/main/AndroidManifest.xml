@@ -6,7 +6,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Only used when the user asks to check GitHub for a newer Aura. -->
+    <!-- GitHub only: a newer Aura when the user asks, and the owner's app folder once a day. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Lets "Desinstalar" open the standard system uninstall dialog. -->
@@ -71,6 +71,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- "Nuevas apps disponibles": installs apps from the owner's online folder (AppsCatalog). -->
+        <activity
+            android:name=".AppsActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/apps_title"
+            android:theme="@style/Theme.Aura.Transparent" />
 
         <provider
             android:name=".InstallProvider"

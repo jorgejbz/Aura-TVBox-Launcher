@@ -33,6 +33,12 @@ final class Defaults {
         return out;
     }
 
+    /** apps.release=owner/repo/tag (or "off"): the online app folder; null to use Aura's default. */
+    static String appsSource() {
+        String v = props().getProperty("apps.release");
+        return v == null ? null : v.trim();
+    }
+
     static Map<Integer, String> keys() {
         Map<Integer, String> out = new LinkedHashMap<>();
         for (String name : props().stringPropertyNames()) {

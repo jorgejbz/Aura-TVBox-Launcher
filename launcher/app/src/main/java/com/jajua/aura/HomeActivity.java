@@ -51,6 +51,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    /** Separate from {@link #worker}: downloading APKs must not hold up the app list. */
+    private final ExecutorService catalog = Executors.newSingleThreadExecutor();
     private final Runnable reloadTask = this::reload;
     private final Runnable statusTick = new Runnable() {
         @Override
@@ -131,6 +133,35 @@ public final class HomeActivity extends Activity implements Card.Listener {
         register(clockReceiver, f);
         updateDate();
         main.post(statusTick);
+        checkNewApps();
+    }
+
+    /** Once a day, quietly: only interrupts the user when the online folder has something new. */
+    @SuppressWarnings("deprecation")
+    private void checkNewApps() {
+        final Context app = getApplicationContext();
+        List<AppsCatalog.Offer> known = AppsCatalog.last;
+        if (known != null && !known.isEmpty() && AppsCatalog.hasUnseen(app, known)) {
+            main.postDelayed(this::showNewApps, 1500);
+            return;
+        }
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        NetworkInfo ni = cm == null ? null : cm.getActiveNetworkInfo();
+        if (ni == null || !ni.isConnected() || !AppsCatalog.due(app)) return;
+        catalog.execute(() -> {
+            try {
+                List<AppsCatalog.Offer> offers = AppsCatalog.check(app);
+                if (!offers.isEmpty() && AppsCatalog.hasUnseen(app, offers)) main.post(this::showNewApps);
+            } catch (Exception ignored) {
+                // No network or GitHub unavailable: try again tomorrow, or by hand from Aura > Sistema.
+            }
+        });
+    }
+
+    /** Not over another app or menu: if Aura is not in front, it waits for the next return home. */
+    private void showNewApps() {
+        if (isFinishing() || isDestroyed() || !hasWindowFocus() || (dialog != null && dialog.isShowing())) return;
+        startActivity(new Intent(this, AppsActivity.class));
     }
 
     @Override
@@ -145,6 +176,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
         unregisterReceiver(packageReceiver);
         main.removeCallbacksAndMessages(null);
         worker.shutdownNow();
+        catalog.shutdownNow();
         super.onDestroy();
     }
 
