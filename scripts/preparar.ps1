@@ -235,6 +235,10 @@ function Version-Apk($f) {
     $l = & (Join-Path $script:BT 'aapt2.exe') dump badging $f 2>$null | Select-Object -First 1
     if ("$l" -match "versionCode='(\d+)'") { return [int]$matches[1] }; return 0
 }
+function Nombre-Apk($f) {
+    $l = & (Join-Path $script:BT 'aapt2.exe') dump badging $f 2>$null | Select-Object -First 1
+    if ("$l" -match "versionName='([^']*)'") { return $matches[1] }; return '?'
+}
 function Apksigner-Funciona { cmd /c "`"$(Join-Path $script:BT 'apksigner.bat')`" --version >nul 2>nul"; return ($LASTEXITCODE -eq 0) }
 
 # Lo que falte en la PC se instala solo, sin Android Studio: adb y build-tools de Google, Java portátil de Adoptium
@@ -301,10 +305,11 @@ function Requisitos {
     $ultima = Join-Path $env:TEMP 'Aura-ultima.apk'
     try { Invoke-WebRequest -UseBasicParsing 'https://github.com/jorgejbz/Aura-TVBox-Launcher/releases/latest/download/Aura.apk' -OutFile $ultima }
     catch { $ultima = $null; if (-not (Test-Path $script:Aura)) { Fallar "No pude bajar Aura de GitHub: $_" } }
-    if ($ultima -and (-not (Test-Path $script:Aura) -or (Version-Apk $ultima) -gt (Version-Apk $script:Aura))) {
+    if (-not $ultima) { $origen = 'copia guardada en esta PC: no pude revisar GitHub' }
+    elseif (-not (Test-Path $script:Aura) -or (Version-Apk $ultima) -ge (Version-Apk $script:Aura)) {
         Copy-Item $ultima $script:Aura -Force
-        Info "Aura: uso la última versión publicada (versionCode $(Version-Apk $script:Aura))."
-    }
+        $origen = 'la última publicada en GitHub'
+    } else { $origen = "build\Aura.apk compilado, más nuevo que la publicada $(Nombre-Apk $ultima)" }
     if ($ultima) { Remove-Item $ultima -ErrorAction SilentlyContinue }
     # Sólo se acepta el Aura firmado con la llave del proyecto.
     # Por cmd, para descartar los avisos de Java de apksigner sin que PowerShell los muestre como error.
@@ -313,6 +318,8 @@ function Requisitos {
         Fallar "build\Aura.apk no tiene la firma de Aura ($cert). Bórralo y vuelve a ejecutar."
     }
     Info 'adb, Python y Aura firmado: listos.'
+    # Lo primero que se ve al abrir el .bat: qué Aura va a quedar en /system de la caja.
+    Write-Host "  Aura que se instalará: $(Nombre-Apk $script:Aura) ($origen)" -ForegroundColor Green
 }
 
 function Etapa-diagnostico {
