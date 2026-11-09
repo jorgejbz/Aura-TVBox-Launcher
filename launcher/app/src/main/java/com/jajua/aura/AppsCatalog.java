@@ -52,6 +52,16 @@ final class AppsCatalog {
     private static final String SEEN = "seen";
     private static final String META = "meta.";
 
+    private static final String PENDING = "pending";
+    private static final String AURA_LATEST = "aura_latest";
+    private static final String AURA_RELEASE =
+            "https://api.github.com/repos/jorgejbz/Aura-TVBox-Launcher/releases/latest";
+
+    /** Download progress for the screen: what is being fetched and how far (0-100, or -1 if unknown). */
+    interface Progress {
+        void at(String what, int percent);
+    }
+
     /** Offers from the latest check, so the dialog opened right after it does not ask GitHub again. */
     static volatile List<Offer> last;
 
@@ -130,6 +140,10 @@ final class AppsCatalog {
 
     /** Asks GitHub and returns what this box can install; runs on a worker thread. */
     static List<Offer> check(Context c) throws IOException, JSONException {
+        return check(c, null);
+    }
+
+    static List<Offer> check(Context c, Progress progress) throws IOException, JSONException {
         SharedPreferences prefs = prefs(c);
         prefs.edit().putLong(LAST_CHECK, System.currentTimeMillis()).apply();
         String src = source();
@@ -171,7 +185,7 @@ final class AppsCatalog {
 
             String meta = prefs.getString(META + key, null);
             if (meta == null) {
-                download(url, f);
+                download(url, f, progress, name);
                 meta = describe(c, f, bundle);
                 if ("-".equals(meta)) f.delete();
                 prefs.edit().putString(META + key, meta).apply();
@@ -206,6 +220,9 @@ final class AppsCatalog {
 
         Collections.sort(offers, (x, y) -> x.label.compareToIgnoreCase(y.label));
         last = Collections.unmodifiableList(offers);
+        Set<String> pending = new HashSet<>();
+        for (Offer o : offers) pending.add(o.pkg + ":" + o.versionCode);
+        prefs.edit().putStringSet(PENDING, pending).apply();
         return last;
     }
 
@@ -214,11 +231,15 @@ final class AppsCatalog {
      * app keeping only the parts this box can use, and re-checks the app. {@link #discard} cleans up.
      */
     static List<File> fetch(Context c, Offer o) throws IOException {
+        return fetch(c, o, null);
+    }
+
+    static List<File> fetch(Context c, Offer o, Progress progress) throws IOException {
         File f = o.file(c);
         if (!f.isFile()) {
             File dir = dir(c);
             if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("no cache dir");
-            download(o.url, f);
+            download(o.url, f, progress, o.label);
         }
         List<File> apks = o.bundle ? choose(unpack(f, work(f))) : Collections.singletonList(f);
         String[] m = apks == null ? new String[0] : describeApk(c.getPackageManager(), apks.get(0)).split("\t", -1);
@@ -378,10 +399,10 @@ final class AppsCatalog {
         }
     }
 
-    private static void download(String url, File to) throws IOException {
+    private static void download(String url, File to, Progress progress, String what) throws IOException {
         File part = new File(to.getPath() + ".part");
         try (OutputStream out = new FileOutputStream(part)) {
-            read(url, out);
+            read(url, out, progress, what);
         } catch (IOException e) {
             part.delete();
             throw e;
@@ -394,6 +415,10 @@ final class AppsCatalog {
 
     /** Body into {@code sink}, or returned when {@code sink} is null (small JSON answers only). */
     private static byte[] read(String url, OutputStream sink) throws IOException {
+        return read(url, sink, null, null);
+    }
+
+    private static byte[] read(String url, OutputStream sink, Progress progress, String what) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         try {
             c.setConnectTimeout(TIMEOUT_MS);
@@ -408,6 +433,8 @@ final class AppsCatalog {
             long limit = sink == null ? 4L * 1024 * 1024 : MAX_APK_BYTES;
             OutputStream out = sink != null ? sink : new ByteArrayOutputStream();
             long total = 0;
+            long length = c.getContentLength();
+            int shown = -2;
             try (InputStream in = new BufferedInputStream(c.getInputStream())) {
                 byte[] buffer = new byte[65536];
                 int n;
@@ -416,12 +443,57 @@ final class AppsCatalog {
                     total += n;
                     if (total > limit) throw new IOException("too large");
                     out.write(buffer, 0, n);
+                    int percent = length > 0 ? (int) Math.min(100, total * 100 / length) : -1;
+                    if (progress != null && percent != shown) {
+                        shown = percent;
+                        progress.at(what, percent);
+                    }
                 }
             }
             return sink == null ? ((ByteArrayOutputStream) out).toByteArray() : null;
         } finally {
             c.disconnect();
         }
+    }
+
+    /** Asks GitHub for the newest published Aura and remembers it for the badge; worker thread. */
+    static void checkAura(Context c) throws IOException, JSONException {
+        JSONObject release = new JSONObject(new String(read(AURA_RELEASE, null), "UTF-8"));
+        String tag = release.getString("tag_name").replaceFirst("^[vV]", "");
+        prefs(c).edit().putString(AURA_LATEST, tag).apply();
+    }
+
+    /** A newer Aura was published (as of the last check). */
+    static boolean auraNewer(Context c) {
+        String latest = prefs(c).getString(AURA_LATEST, "");
+        try {
+            String mine = c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName;
+            return !latest.isEmpty() && UpdateActivity.isNewer(latest, mine);
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    /**
+     * What the "Actualizar" shortcut counts: a newer Aura plus the apps from the last check that are still
+     * not installed at that version. Reads no network, so it can run on every return home.
+     */
+    @SuppressWarnings("deprecation")
+    static int pendingCount(Context c) {
+        PackageManager pm = c.getPackageManager();
+        int n = auraNewer(c) ? 1 : 0;
+        for (String item : prefs(c).getStringSet(PENDING, Collections.<String>emptySet())) {
+            int colon = item.lastIndexOf(':');
+            if (colon < 0) continue;
+            try {
+                long code = Long.parseLong(item.substring(colon + 1));
+                if (versionCode(pm.getPackageInfo(item.substring(0, colon), 0)) >= code) continue;
+            } catch (PackageManager.NameNotFoundException | NumberFormatException e) {
+                // Not installed yet: still pending.
+            }
+            n++;
+        }
+        return n;
     }
 
     private static SharedPreferences prefs(Context c) {

@@ -191,12 +191,32 @@ final class SystemInfo {
     }
 
     /** The port adbd really listens on, or 0. Reads the kernel's table, then falls back to properties. */
+    /** The running Aura's version name. */
+    static String auraVersion(Context c) {
+        try {
+            return c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName;
+        } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+            return "?";
+        }
+    }
+
+    /** Version of the copy in /system/priv-app (what a factory reset brings back), or null if there is none. */
+    static String auraSystemVersion(Context c) {
+        java.io.File apk = new java.io.File("/system/priv-app/Aura/Aura.apk");
+        if (!apk.isFile()) return null;
+        android.content.pm.PackageInfo pi = c.getPackageManager().getPackageArchiveInfo(apk.getPath(), 0);
+        return pi == null ? null : pi.versionName;
+    }
+
     static int adbNetworkPort() {
         int port = number(prop("service.adb.tcp.port"));
         if (port <= 0) port = number(prop("persist.adb.tcp.port"));
-        if (port <= 0 || !"running".equals(prop("init.svc.adbd"))) return 0;
+        if (port <= 0) return 0;
+        // The kernel's socket table is the truth: after "adb root" some firmwares (Rockchip) report adbd as
+        // "stopping" while it listens and serves. Only when the table is hidden (Android 10+) trust init.
         Boolean listening = isListening(port);
-        return listening == null || listening ? port : 0;
+        if (listening != null) return listening ? port : 0;
+        return "running".equals(prop("init.svc.adbd")) ? port : 0;
     }
 
     /** Null when the kernel's table cannot be read (Android 10+ hides it from apps). */

@@ -50,7 +50,9 @@ public final class AppsActivity extends Activity {
 
     private void check() {
         try {
-            List<AppsCatalog.Offer> offers = AppsCatalog.check(getApplicationContext());
+            // The first look at a new APK downloads it once: show which file and how far.
+            List<AppsCatalog.Offer> offers = AppsCatalog.check(getApplicationContext(),
+                    (what, pct) -> progress(getString(R.string.apps_checking_file, what), pct));
             ui(() -> {
                 if (!offers.isEmpty()) offer(offers);
                 else if (manual) status(getString(R.string.apps_none), true);
@@ -102,10 +104,11 @@ public final class AppsActivity extends Activity {
         status(getString(R.string.apps_downloading, o.label), false);
         worker.execute(() -> {
             try {
-                List<File> apks = AppsCatalog.fetch(getApplicationContext(), o);
+                List<File> apks = AppsCatalog.fetch(getApplicationContext(), o,
+                        (what, pct) -> progress(getString(R.string.apps_downloading, o.label), pct));
                 ui(() -> status(getString(R.string.apps_installing, o.label), false));
                 // The "Instalar" pressed in Aura is the confirmation: no second screen when Aura is a system app.
-                Installer.install(this, apks, o.pkg, ok -> ui(() -> {
+                Installer.install(this, apks, o.pkg, true, ok -> ui(() -> {
                     AppsCatalog.discard(getApplicationContext(), o);
                     if (ok) installed++;
                     else Toast.makeText(this, getString(R.string.apps_failed, o.label), Toast.LENGTH_LONG).show();
@@ -117,6 +120,14 @@ public final class AppsActivity extends Activity {
                     next();
                 });
             }
+        });
+    }
+
+    /** Updates the open "Descargando…" message in place, with the percentage when it is known. */
+    private void progress(String message, int percent) {
+        String text = percent >= 0 ? message + "  " + percent + "%" : message;
+        ui(() -> {
+            if (dialog != null && dialog.isShowing()) dialog.setMessage(text);
         });
     }
 

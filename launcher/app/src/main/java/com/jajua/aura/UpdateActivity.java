@@ -160,7 +160,7 @@ public final class UpdateActivity extends Activity {
             ui(() -> status(getString(R.string.update_title), getString(R.string.update_installing), false));
             // "Descargar e instalar" is the confirmation: as a system app Aura replaces itself without a
             // second screen (and this process ends). Otherwise Android shows its own confirmation.
-            Installer.install(this, Collections.singletonList(apk), getPackageName(), ok -> ui(() -> {
+            Installer.install(this, Collections.singletonList(apk), getPackageName(), true, ok -> ui(() -> {
                 if (ok) finish();
                 else status(getString(R.string.update_title), getString(R.string.update_error), true);
             }));

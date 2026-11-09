@@ -27,6 +27,7 @@ final class Card extends LinearLayout {
     final Entry entry;
     final FrameLayout face;
     private final TextView label;
+    private TextView badge;
     private final GradientDrawable ring;
     private final float restLabelAlpha;
     private final int faceH;
@@ -125,6 +126,32 @@ final class Card extends LinearLayout {
             listener.onCardOptions(this);
             return true;
         });
+    }
+
+    /** A small number on the tile's corner (what is pending); 0 hides it. */
+    void setBadge(int count) {
+        if (count <= 0) {
+            if (badge != null) badge.setVisibility(GONE);
+            return;
+        }
+        if (badge == null) {
+            badge = Ui.text(getContext(), 11, Ui.medium, 1f);
+            badge.setGravity(Gravity.CENTER);
+            badge.setTextColor(0xFF07080B);
+            GradientDrawable dot = new GradientDrawable();
+            dot.setColor(0xFFFFB74D);
+            dot.setCornerRadius(Ui.uf(9));
+            badge.setBackground(dot);
+            int h = Ui.u(18);
+            badge.setMinWidth(h);
+            badge.setPadding(Ui.u(5), 0, Ui.u(5), 0);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, h,
+                    Gravity.TOP | Gravity.END);
+            lp.setMargins(0, Ui.u(7), Ui.u(7), 0);
+            face.addView(badge, lp);
+        }
+        badge.setText(count > 9 ? "9+" : String.valueOf(count));
+        badge.setVisibility(VISIBLE);
     }
 
     private void animateFocus(boolean focused) {

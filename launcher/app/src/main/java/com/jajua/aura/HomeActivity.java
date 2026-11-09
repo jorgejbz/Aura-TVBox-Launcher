@@ -104,6 +104,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
         Ui.init(this);
         KeyMap.importDefaultsOnce(this);
         KeyMap.enableServiceOnce(this);
+        AutoUpdateJob.schedule(this);
         setContentView(buildLayout());
 
         IntentFilter pkg = new IntentFilter();
@@ -136,32 +137,45 @@ public final class HomeActivity extends Activity implements Card.Listener {
         checkNewApps();
     }
 
-    /** Once a day, quietly: only interrupts the user when the online folder has something new. */
+    /**
+     * Once a day, quietly: asks GitHub for a newer Aura and the app folder, and shows what is pending as a
+     * number on the "Actualizar" shortcut. Nothing pops up over what the user is doing.
+     */
     @SuppressWarnings("deprecation")
     private void checkNewApps() {
         final Context app = getApplicationContext();
-        List<AppsCatalog.Offer> known = AppsCatalog.last;
-        if (known != null && !known.isEmpty() && AppsCatalog.hasUnseen(app, known)) {
-            main.postDelayed(this::showNewApps, 1500);
-            return;
-        }
+        refreshBadge();
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         NetworkInfo ni = cm == null ? null : cm.getActiveNetworkInfo();
         if (ni == null || !ni.isConnected() || !AppsCatalog.due(app)) return;
         catalog.execute(() -> {
             try {
-                List<AppsCatalog.Offer> offers = AppsCatalog.check(app);
-                if (!offers.isEmpty() && AppsCatalog.hasUnseen(app, offers)) main.post(this::showNewApps);
+                AppsCatalog.checkAura(app);
             } catch (Exception ignored) {
-                // No network or GitHub unavailable: try again tomorrow, or by hand from Aura > Sistema.
+                // GitHub unavailable: the apps below may still answer.
             }
+            try {
+                AppsCatalog.check(app);
+            } catch (Exception ignored) {
+                // No network or GitHub unavailable: try again tomorrow, or by hand from "Actualizar".
+            }
+            refreshBadge();
         });
     }
 
-    /** Not over another app or menu: if Aura is not in front, it waits for the next return home. */
-    private void showNewApps() {
-        if (isFinishing() || isDestroyed() || !hasWindowFocus() || (dialog != null && dialog.isShowing())) return;
-        startActivity(new Intent(this, AppsActivity.class));
+    /** Counts what is pending off the main thread (it asks the package manager) and shows it. */
+    private void refreshBadge() {
+        final Context app = getApplicationContext();
+        catalog.execute(() -> {
+            int n = AppsCatalog.pendingCount(app);
+            main.post(() -> {
+                if (isDestroyed()) return;
+                for (int i = 0; i < tileRow.getChildCount(); i++) {
+                    View v = tileRow.getChildAt(i);
+                    if (v instanceof Card && "tile:update".equals(((Card) v).entry.key)) ((Card) v).setBadge(n);
+                }
+            });
+        });
     }
 
     @Override
@@ -404,6 +418,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
         rendering = false;
         focusedKey = keep;
         restoreFocus(prefer);
+        refreshBadge(); // The tiles were rebuilt; an install or removal may also change the count.
     }
 
     /**
@@ -659,6 +674,13 @@ public final class HomeActivity extends Activity implements Card.Listener {
                 SystemInfo.size(disk[1]), SystemInfo.size(disk[0])), null);
         infoRow(list, R.string.info_display, SystemInfo.display(this), null);
         infoRow(list, R.string.info_ip, SystemInfo.ipAddress(this), null);
+        // Which boxes still need Actualizar-Aura-TVBox.bat: the /system copy decides the install permission.
+        String mine = SystemInfo.auraVersion(this), sys = SystemInfo.auraSystemVersion(this);
+        infoRow(list, R.string.info_aura, sys == null || sys.equals(mine) ? mine
+                : getString(R.string.info_aura_system, mine, sys), null);
+        boolean quiet = Installer.quiet(this);
+        infoRow(list, R.string.info_install, getString(quiet ? R.string.info_install_yes : R.string.info_install_no),
+                quiet ? null : getString(R.string.info_install_note));
         final int adbPort = SystemInfo.adbNetworkPort();
         infoRow(list, R.string.info_adb, adbPort > 0 ? getString(R.string.adb_open, adbPort)
                 : getString(R.string.adb_closed), adbPort > 0 ? getString(R.string.adb_open_note) : null);
@@ -787,7 +809,16 @@ public final class HomeActivity extends Activity implements Card.Listener {
             else net = ni.getTypeName();
         }
         long free = SystemInfo.storage()[1];
-        status.setText(net + "  ·  " + getString(R.string.storage_free, SystemInfo.size(free)));
+        String text = net + "  ·  " + getString(R.string.storage_free, SystemInfo.size(free));
+        // Open ADB lets anyone on the network control the box: say so on the home screen, not only in Sistema.
+        if (SystemInfo.adbNetworkPort() > 0) {
+            android.text.SpannableString s = new android.text.SpannableString(
+                    text + "  ·  " + getString(R.string.status_adb_open));
+            s.setSpan(new android.text.style.ForegroundColorSpan(0xFFFFB74D), text.length(), s.length(), 0);
+            status.setText(s);
+        } else {
+            status.setText(text);
+        }
     }
 
     private void register(BroadcastReceiver r, IntentFilter f) {
