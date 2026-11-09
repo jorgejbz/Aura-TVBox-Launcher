@@ -713,8 +713,18 @@ public final class HomeActivity extends Activity implements Card.Listener {
             if (on == (SystemInfo.adbNetworkPort() == 0)) {
                 Toast.makeText(this, R.string.adb_refused, Toast.LENGTH_LONG).show();
             }
+            updateStatus();
             showSystemInfo();
         }, 2500);
+        // adbd can take a few more seconds to listen again: the home status line must not wait a minute.
+        main.postDelayed(this::updateStatus, 8000);
+    }
+
+    /** Back from a dialog or another screen: refresh the status line (ADB, network, space) at once. */
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && status != null) updateStatus();
     }
 
     /** "Actualizar apps de madrugada": reachable with the arrows, OK switches it, saved at once. */

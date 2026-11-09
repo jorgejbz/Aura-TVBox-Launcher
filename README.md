@@ -1,4 +1,4 @@
-# Aura TV Box Launcher · v1.3
+# Aura TV Box Launcher · v1.3.1
 
 Convierte una TV Box Android genérica en un equipo limpio, honesto y minimalista:
 
