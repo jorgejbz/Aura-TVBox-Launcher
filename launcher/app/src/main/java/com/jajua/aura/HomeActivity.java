@@ -658,9 +658,18 @@ public final class HomeActivity extends Activity implements Card.Listener {
         String android = SystemInfo.androidVersion();
         String claimed = SystemInfo.claimedRelease();
 
-        LinearLayout list = vertical();
+        // Two columns, so every row fits on a 720p TV; scrollable in case a firmware uses big fonts.
+        LinearLayout cols = new LinearLayout(this);
+        cols.setOrientation(LinearLayout.HORIZONTAL);
         int pad = Ui.u(20);
-        list.setPadding(pad, Ui.u(8), pad, 0);
+        cols.setPadding(pad, Ui.u(4), pad, Ui.u(8));
+        LinearLayout list = vertical(), right = vertical();
+        cols.addView(list, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, -2, 1f);
+        rp.leftMargin = Ui.u(24);
+        cols.addView(right, rp);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(cols);
         // "7.1.2" is a truthful claim for "Android 7.1 (API 25)"; only flag a different version.
         String real = android.substring("Android ".length(), android.indexOf(" ("));
         String claimedNote = claimed.equals(real) || claimed.startsWith(real + ".") ? null
@@ -672,28 +681,31 @@ public final class HomeActivity extends Activity implements Card.Listener {
                 SystemInfo.size(mem[1]), SystemInfo.size(mem[0])), null);
         infoRow(list, R.string.info_storage, getString(R.string.info_of,
                 SystemInfo.size(disk[1]), SystemInfo.size(disk[0])), null);
-        infoRow(list, R.string.info_display, SystemInfo.display(this), null);
-        infoRow(list, R.string.info_ip, SystemInfo.ipAddress(this), null);
+        infoRow(right, R.string.info_display, SystemInfo.display(this), null);
+        infoRow(right, R.string.info_ip, SystemInfo.ipAddress(this), null);
         // Which boxes still need Actualizar-Aura-TVBox.bat: the /system copy decides the install permission.
         String mine = SystemInfo.auraVersion(this), sys = SystemInfo.auraSystemVersion(this);
-        infoRow(list, R.string.info_aura, sys == null || sys.equals(mine) ? mine
+        infoRow(right, R.string.info_aura, sys == null || sys.equals(mine) ? mine
                 : getString(R.string.info_aura_system, mine, sys), null);
         boolean quiet = Installer.quiet(this);
-        infoRow(list, R.string.info_install, getString(quiet ? R.string.info_install_yes : R.string.info_install_no),
-                quiet ? null : getString(R.string.info_install_note));
+        infoRow(right, R.string.info_install, getString(quiet ? R.string.info_install_yes : R.string.info_install_no),
+                getString(quiet ? R.string.info_install_yes_note : R.string.info_install_note));
+        // The one choice in this window: only meaningful when Aura can install without Android's screen.
+        if (quiet) right.addView(autoUpdateSwitch(), margins(0, 12, 0, 0));
         final int adbPort = SystemInfo.adbNetworkPort();
-        infoRow(list, R.string.info_adb, adbPort > 0 ? getString(R.string.adb_open, adbPort)
+        infoRow(right, R.string.info_adb, adbPort > 0 ? getString(R.string.adb_open, adbPort)
                 : getString(R.string.adb_closed), adbPort > 0 ? getString(R.string.adb_open_note) : null);
 
         dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.info_title)
-                .setView(list)
+                .setView(scroll)
                 .setPositiveButton(R.string.info_close, null)
                 .setNegativeButton(adbPort > 0 ? R.string.adb_turn_off : R.string.adb_turn_on,
                         (d, w) -> toggleAdb(adbPort == 0))
                 .setNeutralButton(R.string.update_check, (d, w) -> startActivity(
                         new Intent(this, UpdateActivity.class)))
                 .show();
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(760), -2);
     }
 
     /** Shows the port's real state afterwards: a firmware can refuse the change. */
@@ -708,6 +720,26 @@ public final class HomeActivity extends Activity implements Card.Listener {
         }, 2500);
     }
 
+    /** "Actualizar apps de madrugada": reachable with the arrows, OK switches it, saved at once. */
+    private View autoUpdateSwitch() {
+        android.widget.Switch s = new android.widget.Switch(this);
+        s.setText(R.string.info_auto_update);
+        s.setTextColor(Ui.TEXT);
+        s.setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.uf(15));
+        s.setTypeface(Ui.medium);
+        s.setChecked(AutoUpdateJob.enabled(this));
+        s.setFocusable(true);
+        int p = Ui.u(8);
+        s.setPadding(p, p, p, p);
+        android.graphics.drawable.GradientDrawable focus = new android.graphics.drawable.GradientDrawable();
+        focus.setCornerRadius(Ui.uf(8));
+        focus.setColor(0x00000000);
+        s.setBackground(focus);
+        s.setOnFocusChangeListener((v, has) -> focus.setColor(has ? 0x33FFFFFF : 0x00000000));
+        s.setOnCheckedChangeListener((b, on) -> AutoUpdateJob.setEnabled(this, on));
+        return s;
+    }
+
     private void infoRow(LinearLayout list, int label, String value, String note) {
         TextView l = Ui.text(this, 12, Ui.regular, 0.55f);
         l.setText(label);
@@ -717,6 +749,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
         list.addView(v);
         if (note != null) {
             TextView n = Ui.text(this, 12, Ui.regular, 0.55f);
+            n.setSingleLine(false); // Notes explain; they may take two lines in a column.
             n.setText(note);
             list.addView(n, margins(0, 2, 0, 0));
         }

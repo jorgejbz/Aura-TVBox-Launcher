@@ -22,7 +22,7 @@ public final class AutoUpdateJob extends JobService {
     private static final int JOB_ID = 4201;
     private static final long EVERY_MS = 60L * 60 * 1000;
     private static final int FROM_HOUR = 3, TO_HOUR = 6;
-    private static final String PREFS = "auto_update", LAST_RUN = "last_run";
+    private static final String PREFS = "auto_update", LAST_RUN = "last_run", ENABLED = "enabled";
 
     private Thread thread;
 
@@ -55,8 +55,17 @@ public final class AutoUpdateJob extends JobService {
         return false; // The next hourly run tries again.
     }
 
+    /** The owner's choice in Sistema (on unless turned off): install app updates at night or not. */
+    static boolean enabled(Context c) {
+        return prefs(c).getBoolean(ENABLED, true);
+    }
+
+    static void setEnabled(Context c, boolean on) {
+        prefs(c).edit().putBoolean(ENABLED, on).apply();
+    }
+
     private static boolean due(Context c) {
-        if (AppsCatalog.source() == null || !Installer.quiet(c)) return false;
+        if (!enabled(c) || AppsCatalog.source() == null || !Installer.quiet(c)) return false;
         Calendar now = Calendar.getInstance();
         int hour = now.get(Calendar.HOUR_OF_DAY);
         if (hour < FROM_HOUR || hour >= TO_HOUR) return false;
