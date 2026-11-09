@@ -40,7 +40,7 @@ if ($cert -ne '1bf3f8f944dac8496f0f13be7a40304ef6622c51e778f4d9e160b99ebc12ff21'
 $version = Version-Apk $aura
 "Aura a instalar: versionCode $version ($aura)"
 
-# 2. Root y /system escribible (en Rockchip sólo funciona adb remount).
+# 2. Root y Aura ya en /system.
 Conectar
 adb -s $Serial root 2>&1 | Out-Null; Start-Sleep 4; Conectar
 if ((Sh 'id -u') -ne '0') { throw 'adb root no funciona en esta caja.' }
@@ -51,14 +51,25 @@ if ((Sh 'ls /system/priv-app/Aura/Aura.apk 2>/dev/null') -ne '/system/priv-app/A
 # 3. Primero como actualización (conserva favoritas y botones), luego la copia de /system.
 $r = (adb -s $Serial install -r $aura 2>&1 | Out-String).Trim()
 if ($r -notmatch 'Success' -and $r -notmatch 'DOWNGRADE') { throw "No se pudo instalar Aura: $r" }
-adb -s $Serial remount 2>&1 | Out-Null
+# /system en escritura: en HiSilicon (system-as-root) adb remount falla con "Permission denied" y hay que poner el
+# dispositivo de bloque en rw y remontar a mano, como fabrica.ps1; en Rockchip sólo funciona adb remount.
+$sysmnt = if (Sh "grep ' /system ' /proc/mounts") { '/system' } else { '/' }
+function SystemRw { [bool](Sh "grep ' $sysmnt ' /proc/mounts | grep '[ ,]rw[ ,]'") }
+$sysdev = Sh "grep ' $sysmnt ' /proc/mounts | cut -d' ' -f1"
+if ($sysdev -eq '/dev/root' -or -not (Sh "ls $sysdev 2>/dev/null")) {
+    $sysdev = Sh 'readlink -f /dev/block/by-name/system 2>/dev/null || ls /dev/block/platform/*/by-name/system 2>/dev/null'
+    if (-not $sysdev) { $sysdev = Sh "tr ' ' '\n' < /proc/cmdline | grep '^root=/dev/' | cut -d= -f2" }
+}
+Sh "blockdev --setrw $sysdev; mount -o remount,rw $sysmnt" | Out-Null
+if (-not (SystemRw)) { adb -s $Serial remount 2>&1 | Out-Null }
+if (-not (SystemRw)) { throw "No pude montar $sysmnt en escritura ($sysdev): no toqué /system." }
 adb -s $Serial push $aura /data/local/tmp/Aura.apk 2>&1 | Out-Null
-Sh ('cp /data/local/tmp/Aura.apk /system/priv-app/Aura/Aura.apk.new && chown root:root /system/priv-app/Aura/Aura.apk.new && ' +
+$copia = Sh ('cp /data/local/tmp/Aura.apk /system/priv-app/Aura/Aura.apk.new && chown root:root /system/priv-app/Aura/Aura.apk.new && ' +
     'chmod 644 /system/priv-app/Aura/Aura.apk.new && chcon u:object_r:system_file:s0 /system/priv-app/Aura/Aura.apk.new && ' +
-    'mv /system/priv-app/Aura/Aura.apk.new /system/priv-app/Aura/Aura.apk; rm -f /data/local/tmp/Aura.apk; sync') | Out-Null
+    'mv /system/priv-app/Aura/Aura.apk.new /system/priv-app/Aura/Aura.apk; rm -f /data/local/tmp/Aura.apk; sync')
 $h1 = ((Sh 'md5sum /system/priv-app/Aura/Aura.apk') -split '\s+')[0]
 $h2 = (Get-FileHash -Algorithm MD5 $aura).Hash.ToLower()
-if ($h1 -ne $h2) { throw 'La copia de /system no coincide con el APK: revisa antes de reiniciar.' }
+if ($h1 -ne $h2) { throw "La copia de /system no coincide con el APK: revisa antes de reiniciar. $copia" }
 'Copiada a /system/priv-app/Aura. Reiniciando...'
 
 # 4. Tras reiniciar, Android debe dar a Aura el permiso para instalar sin la ventana de confirmación.
