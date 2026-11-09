@@ -82,11 +82,16 @@ if ($Buscar) {
     while ((Get-Date) -lt $limite -and @($intentos | Where-Object { -not $_.T.IsCompleted }).Count) { Start-Sleep -Milliseconds 200 }
     $abiertas = @($intentos | Where-Object { $_.T.IsCompleted -and -not $_.T.IsFaulted -and $_.C.Connected } | ForEach-Object { $_.Ip })
     $intentos | ForEach-Object { $_.C.Close() }
-    $hay = 0
+    $hay = 0; $trabadas = 0
     foreach ($a in $abiertas) {
         $s = "${a}:$Puerto"
         adb connect $s 2>&1 | Out-Null
-        if ((adb -s $s get-state 2>&1 | Out-String).Trim() -ne 'device') { continue }
+        if ((adb -s $s get-state 2>&1 | Out-String).Trim() -ne 'device') {
+            # El puerto abre pero adbd no contesta: ADB trabado en la caja, no es que no esté.
+            Write-Host ("  {0,-15}  abre el puerto $Puerto pero ADB no contesta: en esa caja, Aura > Sistema > Cerrar ADB y Abrir ADB." -f $a) -ForegroundColor Yellow
+            adb disconnect $s 2>&1 | Out-Null
+            $trabadas++; continue
+        }
         $modelo = (adb -s $s shell getprop ro.product.model 2>&1 | Out-String).Trim()
         $chip = (adb -s $s shell getprop ro.board.platform 2>&1 | Out-String).Trim()
         $v = ((adb -s $s shell dumpsys package com.jajua.aura 2>&1 | Out-String) -split "`n" |
@@ -96,9 +101,9 @@ if ($Buscar) {
         adb disconnect $s 2>&1 | Out-Null
         $hay++
     }
-    if (-not $hay) {
+    if (-not $hay -and -not $trabadas) {
         Write-Host '  No encontré ninguna caja. En la TV: Aura > Sistema > Abrir ADB, y que la caja esté en la misma red que la PC.'
-    } else { Write-Host '  Escribe una de esas IP para actualizarla.' }
+    } elseif ($hay) { Write-Host '  Escribe una de esas IP para actualizarla.' }
     exit 0
 }
 
