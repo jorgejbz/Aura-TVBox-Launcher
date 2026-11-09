@@ -69,12 +69,7 @@
     <string name="apps_checking_file">Revisando %1$s…</string>
     <string name="info_aura">Aura</string>
     <string name="info_aura_system">%1$s · en /system: %2$s</string>
-    <string name="info_install">Instalar sin confirmación</string>
-    <string name="info_install_yes">Sí</string>
-    <string name="info_install_yes_note">Basta con «Instalar» en Aura.</string>
     <string name="info_auto_update">Actualizar apps de madrugada</string>
-    <string name="info_install_no">No: Android pide confirmar</string>
-    <string name="info_install_note">Pasa la última Aura a /system desde la PC con Actualizar-Aura-TVBox.bat.</string>
     <string name="status_adb_open">ADB abierto</string>
     <string name="apps_installing">Instalando %1$s…</string>
     <string name="update_installing">Instalando la actualización…</string>

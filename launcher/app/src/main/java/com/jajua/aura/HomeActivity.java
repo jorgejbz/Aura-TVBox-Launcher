@@ -687,11 +687,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
         String mine = SystemInfo.auraVersion(this), sys = SystemInfo.auraSystemVersion(this);
         infoRow(right, R.string.info_aura, sys == null || sys.equals(mine) ? mine
                 : getString(R.string.info_aura_system, mine, sys), null);
-        boolean quiet = Installer.quiet(this);
-        infoRow(right, R.string.info_install, getString(quiet ? R.string.info_install_yes : R.string.info_install_no),
-                getString(quiet ? R.string.info_install_yes_note : R.string.info_install_note));
         // The one choice in this window: only meaningful when Aura can install without Android's screen.
-        if (quiet) right.addView(autoUpdateSwitch(), margins(0, 12, 0, 0));
+        if (Installer.quiet(this)) right.addView(autoUpdateSwitch(), margins(0, 12, 0, 0));
         final int adbPort = SystemInfo.adbNetworkPort();
         infoRow(right, R.string.info_adb, adbPort > 0 ? getString(R.string.adb_open, adbPort)
                 : getString(R.string.adb_closed), adbPort > 0 ? getString(R.string.adb_open_note) : null);
