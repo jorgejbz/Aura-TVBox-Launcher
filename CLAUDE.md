@@ -54,3 +54,8 @@ esta vez y dile al usuario qué cambiar en el repo. Las apps vienen de `AURA_APK
   en la TV; luego retoma con `-Desde verificacion` (no repitas el formateo).
 - Una caja ya preparada en otra PC (sin `estado.json`) no se rehace: `preparar.ps1` detecta en la caja si limpieza,
   falsificaciones y fábrica ya están hechas y las salta.
+- Si una app dividida (YouTube, AirScreen) se cierra al abrir con `UnsatisfiedLinkError` (p. ej. `libcobalt.so`), le
+  falta `split_config.armeabi_v7a.apk`: en OneDrive estaba "sólo en línea" y `adb push` lo saltó sin error.
+  `fabrica.ps1` ya lo descarga antes y comprueba los tamaños después. En una caja ya hecha: `adb remount` (el `mount`
+  da "busy"), sube la parte a `/system/preinstall/<App>/` e instala con `adb install-multiple -r`.
+- Las conexiones UDP salientes a :443 son QUIC de YouTube, no puertos abiertos: `verificar.ps1` no las cuenta.

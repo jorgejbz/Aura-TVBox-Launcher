@@ -84,7 +84,8 @@ $procs = @(((Sh 'ps') -split "`n") | ForEach-Object { ($_.Trim() -split '\s+')[-
 $rarosP = @($procs | Where-Object { $_ -match ':(daemon|watch|push)$|^android\.daemon$' -or ($Perf -and $Perf.Malware -contains ($_ -split ':')[0]) } | Sort-Object -Unique)
 if ($rarosP) { Anotar 'FALLA' 'Procesos' "sospechosos: $($rarosP -join ', ')" } else { Anotar 'OK' 'Procesos' 'ninguno sospechoso' }
 $udp = @(((Sh 'cat /proc/net/udp /proc/net/udp6') -split "`n") | ForEach-Object {
-        $f = $_.Trim() -split '\s+'; if ($f.Count -ge 8 -and $f[0] -match ':$') { [Convert]::ToInt32(($f[1] -split ':')[-1], 16) } } |
+        # Se omiten las conexiones salientes a :443 (QUIC de YouTube/Google): no son puertos abiertos.
+        $f = $_.Trim() -split '\s+'; if ($f.Count -ge 8 -and $f[0] -match ':$' -and $f[2] -notmatch ':01BB$') { [Convert]::ToInt32(($f[1] -split ':')[-1], 16) } } |
     Where-Object { $_ -notin 0, 68, 5353 } | Sort-Object -Unique)
 if ($udp) { Anotar 'FALLA' 'Puertos UDP' ($udp -join ', ') } else { Anotar 'OK' 'Puertos UDP' 'sólo DHCP' }
 $hosts = @(((Sh 'cat /system/etc/hosts') -split "`n") | Where-Object { $_.Trim() -and $_ -notmatch '^\s*#' -and $_ -notmatch '\blocalhost\b' })

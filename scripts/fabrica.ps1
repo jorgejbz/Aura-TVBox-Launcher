@@ -50,6 +50,13 @@ foreach ($pkg in $CopiarDeLaCaja) {
 }
 $aura = Get-ChildItem (Join-Path $root 'build\Aura*.apk') | Sort-Object LastWriteTime | Select-Object -Last 1
 if (-not $aura) { throw 'No hay build\Aura.apk: compila Aura primero (ver README).' }
+# OneDrive "sólo en línea": adb push salta en silencio los archivos que aún no están en la PC (le pasó a los
+# split_config.armeabi_v7a de YouTube y AirScreen, que luego no abren). Leerlos los descarga.
+$apkFiles = @(Get-ChildItem $Apks -Recurse -File)
+foreach ($f in $apkFiles | Where-Object { [int]$_.Attributes -band 0x441000 }) {   # OFFLINE | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS
+    "descargando de OneDrive: $($f.Name)"
+    $st = [IO.File]::OpenRead($f.FullName); try { $st.CopyTo([IO.Stream]::Null) } finally { $st.Dispose() }
+}
 
 # 2. Confirmar
 "`nSe va a escribir en /system:"
@@ -71,6 +78,12 @@ if (-not (Sh "mount | grep ' $sysmnt ' | grep '[(,]rw[,)]'")) { adb -s $Serial r
 if (-not (Sh "mount | grep ' $sysmnt ' | grep '[(,]rw[,)]'")) { throw "No pude montar $sysmnt en escritura." }
 Sh 'rm -rf /system/preinstall/*; mkdir -p /system/etc/aura /system/priv-app/Aura' | Out-Null
 Get-ChildItem $Apks | ForEach-Object { adb -s $Serial push $_.FullName /system/preinstall/ | Select-Object -Last 1 }
+# Comprobar que llegó cada archivo completo (una app dividida sin su parte del procesador se instala pero no abre).
+$faltan = @(foreach ($f in $apkFiles) {
+    $rel = $f.FullName.Substring((Resolve-Path $Apks).Path.TrimEnd('\').Length + 1) -replace '\\', '/'
+    if ((Sh "stat -c %s '/system/preinstall/$rel' 2>/dev/null") -ne "$($f.Length)") { $rel }
+})
+if ($faltan) { throw "No llegaron completos a /system/preinstall: $($faltan -join ', ')" }
 # Overwrite in place: init runs the script under its own SELinux label (e.g. preinstall_exec), which must be kept.
 adb -s $Serial push (Join-Path $PSScriptRoot 'preinstall.sh') /data/local/tmp/preinstall.sh | Out-Null
 Sh 'cat /data/local/tmp/preinstall.sh > /system/bin/preinstall.sh' | Out-Null
