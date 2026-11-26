@@ -26,7 +26,29 @@ final class AppLoader {
     private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList(
             "com.android.documentsui", "com.android.providers.downloads.ui"));
 
+    /**
+     * Cards never draw bigger than this (a 4K favourite card is about 820 px wide). Some apps ship one huge
+     * icon (Xuper Crystal Clear: 1024 px in hdpi only, which Android scales to ~2700 px = 30 MB for xxxhdpi);
+     * keeping those whole ran Aura out of memory when the app list reloaded after an install.
+     */
+    private static final int MAX_ICON_PX = 512, MAX_BANNER_PX = 960;
+
     private AppLoader() {}
+
+    /** Scales a too-large bitmap down; anything else is returned as is. */
+    private static Drawable shrink(Context c, Drawable d, int max) {
+        if (!(d instanceof android.graphics.drawable.BitmapDrawable)) return d;
+        Bitmap b = ((android.graphics.drawable.BitmapDrawable) d).getBitmap();
+        if (b == null || (b.getWidth() <= max && b.getHeight() <= max)) return d;
+        float k = (float) max / Math.max(b.getWidth(), b.getHeight());
+        try {
+            Bitmap small = Bitmap.createScaledBitmap(b, Math.max(1, Math.round(b.getWidth() * k)),
+                    Math.max(1, Math.round(b.getHeight() * k)), true);
+            return new android.graphics.drawable.BitmapDrawable(c.getResources(), small);
+        } catch (OutOfMemoryError e) {
+            return d;
+        }
+    }
 
     static List<Entry> load(Context context) {
         PackageManager pm = context.getPackageManager();
@@ -57,8 +79,8 @@ final class AppLoader {
             boolean system = (app.flags & ApplicationInfo.FLAG_SYSTEM) != 0
                     && (app.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0;
             Entry entry = new Entry(ai.packageName, ai.packageName, ri.loadLabel(pm), null, launch, !system);
-            entry.banner = loadBanner(pm, ai);
-            entry.icon = loadIcon(pm, ri);
+            entry.banner = shrink(context, loadBanner(pm, ai), MAX_BANNER_PX);
+            entry.icon = shrink(context, loadIcon(pm, ri), MAX_ICON_PX);
             entry.tint = dominantColor(entry.banner != null ? entry.banner : entry.icon);
             apps.add(entry);
         }
@@ -74,7 +96,7 @@ final class AppLoader {
             Drawable d = ai.loadBanner(pm);
             if (d == null) d = ai.applicationInfo.loadBanner(pm);
             return d;
-        } catch (RuntimeException ex) {
+        } catch (RuntimeException | OutOfMemoryError ex) {
             return null;
         }
     }
@@ -90,8 +112,14 @@ final class AppLoader {
             }
         } catch (PackageManager.NameNotFoundException | Resources.NotFoundException ignored) {
             // Fall through to the default loader.
+        } catch (OutOfMemoryError tooBig) {
+            // A huge icon blown up for xxxhdpi: the screen's own density is plenty.
         }
-        return ri.loadIcon(pm);
+        try {
+            return ri.loadIcon(pm);
+        } catch (OutOfMemoryError tooBig) {
+            return pm.getDefaultActivityIcon();
+        }
     }
 
     /** Average of the saturated, opaque pixels: gives each card and the backdrop its colour. */

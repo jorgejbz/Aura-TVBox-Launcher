@@ -39,6 +39,12 @@ final class Defaults {
         return v == null ? null : v.trim();
     }
 
+    /** xupers.release=owner/repo/tag: where "Reinstalar Xuper's" downloads from; null for Aura's default. */
+    static String xupersSource() {
+        String v = props().getProperty("xupers.release");
+        return v == null ? null : v.trim();
+    }
+
     static Map<Integer, String> keys() {
         Map<Integer, String> out = new LinkedHashMap<>();
         for (String name : props().stringPropertyNames()) {

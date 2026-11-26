@@ -29,6 +29,14 @@ final class Installer {
         void done(boolean ok);
     }
 
+    /** The full answer: a PackageInstaller status and Android's message (e.g. INSTALL_FAILED_...). */
+    interface ResultCallback {
+        void done(int status, String message);
+    }
+
+    /** PackageManager.INSTALL_ALLOW_DOWNGRADE (Android 7-9) / INSTALL_REQUEST_DOWNGRADE (10+); hidden. */
+    private static final int FLAG_DOWNGRADE = 0x00000080;
+
     private static final String ACTION = "com.jajua.aura.INSTALL_RESULT";
     private static int sequence;
 
@@ -46,6 +54,16 @@ final class Installer {
      * confirmation screen is never shown: the install just fails if it would need one.
      */
     static void install(Context context, List<File> apks, String pkg, boolean ask, Callback cb) {
+        install(context, apks, pkg, ask, false, (status, message) -> cb.done(status == PackageInstaller.STATUS_SUCCESS));
+    }
+
+    /**
+     * Same, with Android's status and message. {@code downgrade} asks to install an older version over a
+     * newer one keeping the app's data; Android only allows it on debuggable firmwares (userdebug boxes)
+     * and otherwise answers INSTALL_FAILED_VERSION_DOWNGRADE.
+     */
+    static void install(Context context, List<File> apks, String pkg, boolean ask, boolean downgrade,
+            ResultCallback cb) {
         final Context c = context.getApplicationContext();
         final String action;
         synchronized (Installer.class) {
@@ -71,7 +89,7 @@ final class Installer {
                 } catch (IllegalArgumentException ignored) {
                     // Already gone.
                 }
-                cb.done(status == PackageInstaller.STATUS_SUCCESS);
+                cb.done(status, i.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE));
             }
         };
         IntentFilter f = new IntentFilter(action);
@@ -85,6 +103,7 @@ final class Installer {
         long size = 0;
         for (File apk : apks) size += apk.length();
         params.setSize(size);
+        if (downgrade) requestDowngrade(params);
         PackageInstaller.Session session = null;
         try {
             int id = pi.createSession(params);
@@ -114,7 +133,23 @@ final class Installer {
             } catch (IllegalArgumentException ignored) {
                 // Not registered.
             }
-            cb.done(false);
+            cb.done(PackageInstaller.STATUS_FAILURE, e.getMessage());
+        }
+    }
+
+    /** setRequestDowngrade is a system API (Android 10+); before it, the same bit of the hidden field. */
+    private static void requestDowngrade(PackageInstaller.SessionParams params) {
+        try {
+            params.getClass().getMethod("setRequestDowngrade", boolean.class).invoke(params, true);
+            return;
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // Older Android: set the flag directly.
+        }
+        try {
+            java.lang.reflect.Field f = params.getClass().getField("installFlags");
+            f.setInt(params, f.getInt(params) | FLAG_DOWNGRADE);
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // Not available: Android will refuse the older version and the caller explains it.
         }
     }
 

@@ -87,6 +87,24 @@
             android:label="@string/apps_title"
             android:theme="@style/Theme.Aura.Transparent" />
 
+        <!-- "Recomendaciones": shown once per boot until turned off, and from the home screen button. -->
+        <activity
+            android:name=".RecommendationsActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/recs_title"
+            android:screenOrientation="landscape" />
+
+        <!-- "Reinstalar Xuper's" (Aura > Sistema): the recommended Xuper apps from the "xupers" release. -->
+        <activity
+            android:name=".ReinstallActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/xr_title"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Aura.Transparent" />
+
         <!-- Nightly: installs newer versions of the box's apps from the online folder. -->
         <service
             android:name=".AutoUpdateJob"

@@ -286,7 +286,7 @@ final class SystemInfo {
     }
 
     /** android.os.SystemProperties is hidden but readable on all versions this app supports. */
-    private static String prop(String key) {
+    static String prop(String key) {
         try {
             Class<?> sp = Class.forName("android.os.SystemProperties");
             Object v = sp.getMethod("get", String.class).invoke(null, key);

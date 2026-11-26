@@ -120,6 +120,20 @@ public final class HomeActivity extends Activity implements Card.Listener {
                     android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::goToTop);
         }
         reload();
+        // Once per boot, until the user ticks "No volver a mostrar" (RecommendationsActivity decides).
+        if (RecommendationsActivity.dueAtStart(this)) main.postDelayed(() -> openRecommendations(false, false), 700);
+    }
+
+    /**
+     * {@code manual}: opened with a button, so only "Continuar" (no "No volver a mostrar").
+     * {@code care}: the "Recomendaciones" page (care of the box) instead of the usage guide.
+     */
+    private void openRecommendations(boolean manual, boolean care) {
+        if (isFinishing() || isDestroyed()) return;
+        startActivity(new Intent(this, RecommendationsActivity.class)
+                .putExtra(RecommendationsActivity.EXTRA_MANUAL, manual)
+                .putExtra(RecommendationsActivity.EXTRA_CARE, care));
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
 
     @Override
@@ -253,9 +267,11 @@ public final class HomeActivity extends Activity implements Card.Listener {
 
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setClipChildren(false); // The focused pill grows a little.
         header.setPadding(Ui.u(Ui.SAFE_X), Ui.u(Ui.SAFE_Y), Ui.u(Ui.SAFE_X), Ui.u(4));
         date = Ui.text(this, 15, Ui.regular, 0.72f);
         header.addView(date, new LinearLayout.LayoutParams(0, -2, 1f));
+        header.addView(headerButtons(), margins(0, 0, 12, 0));
         status = Ui.text(this, 13, Ui.regular, 0.55f);
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-2, -2);
         slp.rightMargin = Ui.u(18);
@@ -306,6 +322,60 @@ public final class HomeActivity extends Activity implements Card.Listener {
         grid = vertical();
         content.addView(grid);
         return root;
+    }
+
+    /**
+     * "Guía de uso" and "Recomendaciones": two small pills next to the network status (Up from the first row
+     * reaches them). They light up like the cards and open their screens.
+     */
+    private View headerButtons() {
+        LinearLayout pills = new LinearLayout(this);
+        pills.setGravity(Gravity.CENTER_VERTICAL);
+        pills.setClipChildren(false);
+        TextView guide = pill(R.string.recs_button, R.string.recs_button_desc,
+                () -> openRecommendations(true, false));
+        TextView care = pill(R.string.care_button, R.string.care_button_desc,
+                () -> openRecommendations(true, true));
+        pills.addView(guide);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.leftMargin = Ui.u(10);
+        pills.addView(care, lp);
+        // Left/right move between the two and stop at the ends; nothing above them.
+        guide.setNextFocusLeftId(guide.getId());
+        guide.setNextFocusRightId(care.getId());
+        care.setNextFocusLeftId(guide.getId());
+        care.setNextFocusRightId(care.getId());
+        return pills;
+    }
+
+    private TextView pill(int label, int desc, Runnable open) {
+        final TextView b = Ui.text(this, 12.5f, Ui.medium, 1f);
+        b.setText(label);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(Ui.u(12), Ui.u(5), Ui.u(12), Ui.u(5));
+        final android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setCornerRadius(Ui.uf(14));
+        bg.setColor(0x14FFFFFF);
+        bg.setStroke(Math.max(1, Ui.u(1)), 0x33FFFFFF);
+        b.setBackground(bg);
+        b.setTextColor(0xB3F5F5F7);
+        b.setFocusable(true);
+        b.setFocusableInTouchMode(true);
+        b.setClickable(true);
+        if (Build.VERSION.SDK_INT >= 26) b.setDefaultFocusHighlightEnabled(false);
+        b.setId(View.generateViewId());
+        b.setOnFocusChangeListener((v, has) -> {
+            bg.setColor(has ? 0xFFF5F5F7 : 0x14FFFFFF);
+            b.setTextColor(has ? 0xFF07080B : 0xB3F5F5F7);
+            v.animate().scaleX(has ? 1.08f : 1f).scaleY(has ? 1.08f : 1f).setDuration(150).start();
+            if (has) {
+                aura.setTint(Ui.ACCENT);
+                showHero(new Entry("btn:" + label, null, getString(label), getString(desc), null, false));
+            }
+        });
+        b.setOnClickListener(v -> open.run());
+        b.setNextFocusUpId(b.getId());
+        return b;
     }
 
     private LinearLayout vertical() {
@@ -703,6 +773,29 @@ public final class HomeActivity extends Activity implements Card.Listener {
                         new Intent(this, UpdateActivity.class)))
                 .show();
         if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(760), -2);
+        addReinstallButton(dialog);
+    }
+
+    /**
+     * "Reinstalar Xuper's", right after "Buscar actualizaciones" in the dialog's own button bar (an alert
+     * dialog has only three buttons), with the very same button style.
+     */
+    private void addReinstallButton(AlertDialog d) {
+        android.widget.Button neutral = d.getButton(AlertDialog.BUTTON_NEUTRAL);
+        if (neutral == null || !(neutral.getParent() instanceof ViewGroup)) return;
+        ViewGroup bar = (ViewGroup) neutral.getParent();
+        android.widget.Button b = new android.widget.Button(d.getContext(), null,
+                android.R.attr.buttonBarButtonStyle);
+        b.setText(R.string.xr_button);
+        b.setTextColor(neutral.getTextColors());
+        b.setTextSize(TypedValue.COMPLEX_UNIT_PX, neutral.getTextSize());
+        b.setTypeface(neutral.getTypeface());
+        b.setOnClickListener(v -> {
+            d.dismiss();
+            startActivity(new Intent(this, ReinstallActivity.class));
+        });
+        bar.addView(b, bar.indexOfChild(neutral) + 1,
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 
     /** Shows the port's real state afterwards: a firmware can refuse the change. */

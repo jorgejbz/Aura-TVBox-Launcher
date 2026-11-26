@@ -86,4 +86,55 @@
     <string name="net_wifi">Wi-Fi</string>
     <string name="net_none">Sin conexión</string>
     <string name="storage_free">%1$s libres</string>
+    <!-- Guía de uso (RecommendationsActivity) -->
+    <string name="recs_button">Guía de uso</string>
+    <string name="recs_button_desc">Cómo usar Magis TV, Xuper Crystal Clear, XuperAmigOnlyTV y Stremio</string>
+    <string name="recs_kicker">AURA TVBOX</string>
+    <string name="recs_title">Guía de uso</string>
+    <string name="recs_subtitle">Lee esto antes de usar tus apps  ·  ▲ ▼ para desplazarte</string>
+    <string name="care_button">Recomendaciones</string>
+    <string name="care_button_desc">Cuidados para que tu TV Box funcione mejor y dure más</string>
+    <string name="care_title">Recomendaciones</string>
+    <string name="care_subtitle">Cuida tu TV Box  ·  ▲ ▼ para desplazarte</string>
+    <string name="recs_dont_show">No volver a mostrar</string>
+    <string name="recs_continue">Continuar</string>
+    <string name="recs_recommended">Versión recomendada: %1$s</string>
+    <string name="recs_installed">Tienes: %1$s</string>
+    <string name="recs_not_installed">No instalada</string>
+
+    <!-- Reinstalar Xuper's -->
+    <string name="xr_button">Reinstalar Xuper’s</string>
+    <string name="xuper_crystal">Xuper Crystal Clear</string>
+    <string name="xuper_magis">Xuper (Magis TV)</string>
+    <string name="xr_title">Reinstalar Xuper’s</string>
+    <string name="xr_item">%1$s\nInstalada: %2$s   →   Se instalará: %3$s (recomendada para su uso)</string>
+    <string name="xr_have">%1$s</string>
+    <string name="xr_not_installed">no instalada</string>
+    <string name="xr_cancel">Cancelar</string>
+    <string name="xr_reinstall">Reinstalar</string>
+    <string name="xr_install">Instalar</string>
+    <string name="xr_confirm_title">Reinstalar %1$s</string>
+    <string name="xr_confirm">Versión instalada: %2$s\nVersión que se descargará: %3$s (recomendada para su uso)\n\nAura la descargará desde la carpeta oficial de Aura TVBox en GitHub, comprobará el archivo y la instalará sobre la que tienes. Tus datos y tu sesión se conservan.</string>
+    <string name="xr_confirm_new">%1$s no está instalada.\nVersión que se descargará: %3$s (recomendada para su uso)\n\nAura la descargará desde la carpeta oficial de Aura TVBox en GitHub, comprobará el archivo y la instalará.</string>
+    <string name="xr_downloading">Descargando %1$s…</string>
+    <string name="xr_installing">Instalando %1$s %2$s…\n\nNo apagues la TV Box.</string>
+    <string name="xr_done">Listo: %1$s %2$s quedó instalada y comprobada.</string>
+    <string name="xr_cancelled">Reinstalación cancelada.</string>
+    <string name="xr_busy">Ya hay una reinstalación en curso.</string>
+    <string name="xr_downgrade">Tienes %1$s %2$s, más nueva que la recomendada (%3$s).\n\nAura volverá a la versión recomendada conservando tus datos y tu sesión.</string>
+    <string name="xr_downgrade_refused">Esta TV Box no permite volver a una versión anterior de %1$s conservando sus datos.\n\nPara instalar la versión recomendada primero hay que desinstalar la que tienes. Se borrarán sus datos y tu sesión; tendrás que volver a iniciar sesión.</string>
+    <string name="xr_signer">La %1$s que tienes (%2$s) no es la de Aura TVBox: está firmada por otro desarrollador, por ejemplo si la descargaste de otra página. Android no permite instalar la recomendada (%3$s) encima.\n\nPara reinstalarla primero hay que desinstalar la que tienes. Se borrarán sus datos y tu sesión; tendrás que volver a iniciar sesión.</string>
+    <string name="xr_uninstall_first">Desinstalar y continuar</string>
+    <string name="xr_not_uninstalled">La app sigue instalada, así que no se cambió nada. Puedes intentarlo de nuevo cuando quieras.</string>
+    <string name="xr_err_network">No se pudo descargar el archivo. Revisa la conexión a internet e inténtalo de nuevo.</string>
+    <string name="xr_err_missing">El archivo todavía no está disponible en la carpeta oficial de Aura TVBox. Inténtalo más tarde.</string>
+    <string name="xr_err_corrupt">El archivo descargado está dañado o incompleto, así que se descartó y no se instaló nada. Inténtalo de nuevo.</string>
+    <string name="xr_err_wrong_app">El archivo descargado no corresponde a esta app, así que se descartó y no se instaló nada.</string>
+    <string name="xr_err_device">Esta versión no es compatible con tu TV Box, así que no se instaló.</string>
+    <string name="xr_err_storage">No hay espacio suficiente. Libera espacio (desinstala apps que no uses) e inténtalo de nuevo.</string>
+    <string name="xr_err_aborted">La instalación se canceló. Tu app quedó como estaba.</string>
+    <string name="xr_err_conflict">Android no pudo reemplazar la app que tienes. Tu app quedó como estaba.</string>
+    <string name="xr_err_blocked">Android bloqueó la instalación. Tu app quedó como estaba.</string>
+    <string name="xr_err_install">No se pudo instalar. Tu app quedó como estaba.</string>
+    <string name="xr_err_verify">Android terminó, pero %1$s no quedó en la versión recomendada. Inténtalo de nuevo.</string>
 </resources>
