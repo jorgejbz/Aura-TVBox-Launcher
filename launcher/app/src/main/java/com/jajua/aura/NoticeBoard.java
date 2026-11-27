@@ -118,6 +118,40 @@ final class NoticeBoard {
         return Integer.parseInt(p[0]) * 60 + Integer.parseInt(p[1]);
     }
 
+    // ------------------------------------------------------------ the night notice
+
+    /**
+     * "aviso_nocturno": {"activo": true, "horario": "19:00-08:00", "titulo": "…", "texto": "…"} — every
+     * key optional. Without it (or on older Auras) the built-in night notice and hours stay as they are.
+     */
+    private static JSONObject night(Context c) {
+        return get(c).optJSONObject("aviso_nocturno");
+    }
+
+    static boolean nightActive(Context c) {
+        JSONObject n = night(c);
+        return n == null || n.optBoolean("activo", true);
+    }
+
+    /** {from, to} hours of the night notice; the built-in ones if the file does not set them. */
+    static int[] nightHours(Context c, int from, int to) {
+        JSONObject n = night(c);
+        String r = n == null ? "" : n.optString("horario", "");
+        if (!r.matches("\\s*\\d{1,2}:\\d{2}\\s*-\\s*\\d{1,2}:\\d{2}\\s*")) return new int[] {from, to};
+        String[] p = r.trim().split("\\s*-\\s*");
+        return new int[] {minutes(p[0]) / 60, minutes(p[1]) / 60};
+    }
+
+    static String nightTitle(Context c, String builtIn) {
+        JSONObject n = night(c);
+        return n == null ? builtIn : text(n, "titulo", builtIn);
+    }
+
+    static String nightText(Context c, String builtIn) {
+        JSONObject n = night(c);
+        return n == null ? builtIn : text(n, "texto", builtIn);
+    }
+
     /** The person left «No volver a mostrar» ticked: this news no longer floats (it stays in «¿No funciona?»). */
     static void hideFloating(Context c) {
         JSONObject n = get(c).optJSONObject("novedad");

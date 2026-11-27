@@ -32,9 +32,9 @@ import java.util.concurrent.Executors;
  * package name, a higher version and the same signing key, and "Descargar e instalar" is the only confirmation when Aura is a privileged system app.
  */
 public final class UpdateActivity extends Activity {
-    private static final String LATEST =
+    static final String LATEST =
             "https://api.github.com/repos/jorgejbz/Aura-TVBox-Launcher/releases/latest";
-    private static final String ASSET = "Aura.apk";
+    static final String ASSET = "Aura.apk";
     /** From the start-up notice's "Actualizar ahora": skip the offer and download at once. */
     static final String EXTRA_INSTALL_NOW = "install_now";
     private static final int MAX_APK_BYTES = 20 * 1024 * 1024;
@@ -96,7 +96,7 @@ public final class UpdateActivity extends Activity {
         dialog = b.show();
     }
 
-    private static String assetUrl(JSONArray assets) throws JSONException {
+    static String assetUrl(JSONArray assets) throws JSONException {
         for (int i = 0; i < assets.length(); i++) {
             JSONObject a = assets.getJSONObject(i);
             if (ASSET.equals(a.getString("name"))) return a.getString("browser_download_url");
@@ -187,12 +187,12 @@ public final class UpdateActivity extends Activity {
         return update.versionCode > mine.versionCode && sameSigner(update.signatures, mine.signatures);
     }
 
-    private static boolean sameSigner(Signature[] a, Signature[] b) {
+    static boolean sameSigner(Signature[] a, Signature[] b) {
         return a != null && b != null && Arrays.equals(a, b);
     }
 
 
-    private static byte[] read(String url) throws IOException {
+    static byte[] read(String url) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         try {
             c.setConnectTimeout(TIMEOUT_MS);

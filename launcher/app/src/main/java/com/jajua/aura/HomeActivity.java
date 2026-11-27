@@ -263,7 +263,10 @@ public final class HomeActivity extends Activity implements Card.Listener {
         }, "aura-esenciales").start(), 120_000);
         // Three minutes in (after the cleanup and the essential apps, which also use the box's adbd): the Aura in
         // /system becomes this one if an update left it older, so a factory reset keeps the newest Aura. No restart.
-        main.postDelayed(() -> new Thread(() -> SystemUpgrade.syncAuraCopy(app), "aura-copia-sistema").start(), 180_000);
+        main.postDelayed(() -> new Thread(() -> {
+            SystemUpgrade.syncAuraCopy(app);
+            SystemUpgrade.dropResourceBackupLater(app); // The 1080p backup, after 5 good starts.
+        }, "aura-copia-sistema").start(), 180_000);
         // The owner's "¿No funciona?" news (GitHub), so the button can show its dot without opening it.
         // If the news is marked "flotante" for this time of day, it also shows as a floating notice.
         main.postDelayed(() -> new Thread(() -> {
@@ -283,7 +286,9 @@ public final class HomeActivity extends Activity implements Card.Listener {
         // Once per boot: a Xuper that moved away from the recommended version, and restarts that look like heat.
         main.postDelayed(() -> new Thread(() -> checkXupers(app), "aura-xupers").start(), 20_000);
         new Thread(() -> {
-            if (BoxCare.waitForClockAndCheckDownHours(app, DOWN_FROM, DOWN_TO)) main.post(() -> {
+            // Hours and on/off of the night notice can come from GitHub (avisos/no-funciona.json, "aviso_nocturno").
+            int[] h = NoticeBoard.nightHours(app, DOWN_FROM, DOWN_TO);
+            if (NoticeBoard.nightActive(app) && BoxCare.waitForClockAndCheckDownHours(app, h[0], h[1])) main.post(() -> {
                 nightPending = true;
                 showNoticeIfHome();
             });
@@ -743,7 +748,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
         msg.setSingleLine(false);
         msg.setEllipsize(null);
         msg.setLineSpacing(Ui.uf(2), 1f);
-        msg.setText(R.string.night_text);
+        msg.setText(NoticeBoard.nightText(this, getString(R.string.night_text)));
         v.addView(msg);
         final android.widget.CheckBox hide = new android.widget.CheckBox(this);
         hide.setText(R.string.night_hide);
@@ -759,7 +764,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
         v.addView(hide, margins(0, 12, 0, 0));
 
         AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle(R.string.night_title)
+                .setTitle(NoticeBoard.nightTitle(this, getString(R.string.night_title)))
                 .setView(v)
                 .setPositiveButton(R.string.heat_ok, null)
                 .setNeutralButton(R.string.night_more, (d, w) -> startActivity(
@@ -834,7 +839,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
             noticePending = true;
             noticeOnReturn = true;
         }
-        if (BoxCare.inHours(DOWN_FROM, DOWN_TO) && !BoxCare.nightHidden(this)) nightPending = true;
+        int[] night = NoticeBoard.nightHours(this, DOWN_FROM, DOWN_TO);
+        if (NoticeBoard.nightActive(this) && BoxCare.inHours(night[0], night[1]) && !BoxCare.nightHidden(this)) nightPending = true;
         // The owner's floating news, again on every return while its time window lasts.
         if (NoticeBoard.floatingNow(this)) newsPending = true;
         showNoticeIfHome();

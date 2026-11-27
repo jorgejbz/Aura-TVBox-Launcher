@@ -65,7 +65,8 @@ public final class AutoUpdateJob extends JobService {
     }
 
     private static boolean due(Context c) {
-        if (!enabled(c) || AppsCatalog.source() == null || !Installer.quiet(c)) return false;
+        // Without an app folder the night run still updates Aura itself.
+        if (!enabled(c) || !Installer.quiet(c)) return false;
         Calendar now = Calendar.getInstance();
         int hour = now.get(Calendar.HOUR_OF_DAY);
         if (hour < FROM_HOUR || hour >= TO_HOUR) return false;
@@ -82,9 +83,9 @@ public final class AutoUpdateJob extends JobService {
         }
         List<AppsCatalog.Offer> offers;
         try {
-            offers = AppsCatalog.check(c);
+            offers = AppsCatalog.source() == null ? java.util.Collections.<AppsCatalog.Offer>emptyList() : AppsCatalog.check(c);
         } catch (Exception e) {
-            return; // No network or GitHub down: tomorrow night.
+            offers = java.util.Collections.emptyList(); // No folder today: Aura itself may still update.
         }
         for (AppsCatalog.Offer o : offers) {
             if (!o.update || Thread.currentThread().isInterrupted()) continue;
@@ -97,6 +98,8 @@ public final class AutoUpdateJob extends JobService {
                 AppsCatalog.discard(c, o);
             }
         }
+        // Last, because replacing Aura ends this process: a newer Aura when nothing would restart the box.
+        if (!Thread.currentThread().isInterrupted()) AuraSelfUpdate.tryAtNight(c);
     }
 
     private static SharedPreferences prefs(Context c) {

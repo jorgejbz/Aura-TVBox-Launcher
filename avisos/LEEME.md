@@ -51,6 +51,26 @@ Agrega a la novedad:
 - Las versiones de Aura anteriores a la 1.4.8 ignoran estos campos: muestran la tarjeta en
   «¿No funciona?» a cualquier hora, sin ventana flotante.
 
+## El aviso nocturno (Aura 1.4.9 o más nueva)
+
+El aviso que sale en la noche («Desde las 10:00 p.m. Xuper Crystal Clear y Magis TV pueden dejar
+de funcionar…») también se controla desde aquí, junto a `novedad`:
+
+```json
+  "aviso_nocturno": {
+    "activo": true,
+    "horario": "19:00-08:00",
+    "titulo": "Aviso de horario",
+    "texto": "Desde las 10:00 p.m. …"
+  }
+```
+
+- `"activo": false` lo apaga en todas las cajas (por ejemplo, si el servicio ya no se cae).
+- `horario`: horas en que sale (cuenta la hora, no los minutos). Conviene que empiece cuando
+  termina el `horario` de la novedad.
+- `titulo` y `texto`: si no los pones, se queda el texto que trae Aura.
+- Sin esta sección, el aviso nocturno sigue exactamente como hasta ahora.
+
 ## Cambiar los textos de horarios (opcional)
 
 Puedes agregar cualquiera de estas claves junto a `novedad`:

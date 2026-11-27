@@ -353,6 +353,28 @@ final class SystemUpgrade {
         }
     }
 
+    /**
+     * The copy of the stock resource partition kept when the 1080p menu was written (15 MB in
+     * /data/local/tmp). It is there in case the new image misbehaved; after 5 starts with the menu at
+     * 1080p it has done its job and goes. Worker thread.
+     */
+    static void dropResourceBackupLater(Context c) {
+        File backup = new File("/data/local/tmp/aura-resource-antes.img");
+        if (!backup.exists()) return;
+        int boot = BoxCare.bootCount(c);
+        if (boot < 0) return;
+        SharedPreferences p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int first = p.getInt("backup_first_boot", -1);
+        if (first < 0 || boot < first) {
+            p.edit().putInt("backup_first_boot", boot).apply();
+            return;
+        }
+        if (boot - first < 5 || !is1080(c)) return;
+        String out = StaleSessions.runCommand(c, "su 0 rm -f " + backup.getPath()
+                + "; ls " + backup.getPath() + " 2>/dev/null || echo borrado");
+        Log.i(TAG, "1080p backup: " + (out == null ? "adb unavailable" : out.trim()));
+    }
+
     // ------------------------------------------------------------ adbd
 
     private static boolean becomeRoot(int port) {
