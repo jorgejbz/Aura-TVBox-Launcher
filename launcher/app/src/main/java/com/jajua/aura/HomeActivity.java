@@ -251,6 +251,10 @@ public final class HomeActivity extends Activity implements Card.Listener {
             SystemUpgrade.afterBoot(app);
             continueAfterUpdate(app);
         }, "aura-mejoras-update").start();
+        // The owner's "¿No funciona?" news (GitHub), so the button can show its dot without opening it.
+        main.postDelayed(() -> new Thread(() -> {
+            if (NoticeBoard.refreshIfStale(app, 0)) main.post(this::refreshBadge);
+        }, "aura-avisos").start(), 15_000);
         main.postDelayed(() -> new Thread(this::offerSystemUpgrade, "aura-mejoras").start(), 30_000);
         // Once per boot: a newer Aura on GitHub gets the big notice (and the small header button).
         main.postDelayed(bootUpdateCheck, 8_000);
@@ -337,10 +341,25 @@ public final class HomeActivity extends Activity implements Card.Listener {
     private void refreshBadge() {
         final Context app = getApplicationContext();
         catalog.execute(() -> {
-            int n = AppsCatalog.pendingCount(app);
+            final int[] n = AppsCatalog.pendingCounts(app);
             final String newer = AppsCatalog.auraNewerVersion(app);
+            // At most hourly while the box stays on; a change shows the dot right away (one more pass).
+            if (NoticeBoard.refreshIfStale(app, 60 * 60 * 1000L)) main.post(this::refreshBadge);
+            final boolean news = NoticeBoard.unseenNews(app);
             main.post(() -> {
                 if (isDestroyed()) return;
+                if (helpPill instanceof TextView) {
+                    TextView helpText = (TextView) helpPill;
+                    // An amber dot while the owner's latest news in "¿No funciona?" has not been opened.
+                    String label = getString(R.string.sched_button);
+                    if (news) {
+                        android.text.SpannableString s = new android.text.SpannableString("●  " + label);
+                        s.setSpan(new android.text.style.ForegroundColorSpan(0xFFFFB74D), 0, 1, 0);
+                        helpText.setText(s);
+                    } else {
+                        helpText.setText(label);
+                    }
+                }
                 if (updatePill != null) {
                     updatePill.setVisibility(newer == null ? View.GONE : View.VISIBLE);
                     if (newer != null) updatePill.setText(getString(R.string.update_pill, newer));
@@ -349,7 +368,20 @@ public final class HomeActivity extends Activity implements Card.Listener {
                 }
                 for (int i = 0; i < tileRow.getChildCount(); i++) {
                     View v = tileRow.getChildAt(i);
-                    if (v instanceof Card && "tile:update".equals(((Card) v).entry.key)) ((Card) v).setBadge(n);
+                    if (!(v instanceof Card) || !"tile:update".equals(((Card) v).entry.key)) continue;
+                    Card card = (Card) v;
+                    // An update (amber number) is not the same as an app you could add (lavender "+n",
+                    // and the tile says "Apps nuevas"), so nobody takes a new app for an update.
+                    if (n[0] > 0) {
+                        card.setBadge(n[0]);
+                        card.setLabel(getString(R.string.tile_update));
+                    } else if (n[1] > 0) {
+                        card.setBadge("+" + (n[1] > 9 ? "9" : n[1]), Ui.ACCENT);
+                        card.setLabel(getString(R.string.tile_new_apps));
+                    } else {
+                        card.setBadge(0);
+                        card.setLabel(getString(R.string.tile_update));
+                    }
                 }
             });
         });

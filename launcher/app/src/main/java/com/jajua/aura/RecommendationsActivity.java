@@ -56,6 +56,8 @@ public final class RecommendationsActivity extends Activity {
     private boolean manual;
     private boolean care;
     private boolean schedule;
+    /** "¿No funciona?" texts from GitHub (NoticeBoard); empty means the built-in ones. */
+    private org.json.JSONObject board = new org.json.JSONObject();
     private View speedCard;
     private TextView speedResult;
     private TextView speedButton;
@@ -104,6 +106,18 @@ public final class RecommendationsActivity extends Activity {
         schedule = getIntent().getBooleanExtra(EXTRA_SCHEDULE, false);
         manual = care || schedule || getIntent().getBooleanExtra(EXTRA_MANUAL, false);
         setContentView(build());
+        if (schedule) {
+            NoticeBoard.markSeen(this);
+            // Shown at once from the kept copy; if the owner changed the texts, the page is rebuilt with them.
+            final Context app = getApplicationContext();
+            new Thread(() -> {
+                if (NoticeBoard.refresh(app, 6000)) runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    setContentView(build());
+                    NoticeBoard.markSeen(this);
+                });
+            }, "aura-avisos").start();
+        }
     }
 
     @Override
@@ -182,9 +196,22 @@ public final class RecommendationsActivity extends Activity {
         slp.topMargin = Ui.u(16);
         column.addView(scroll, slp);
 
+        LinearLayout content = vertical();
+        scroll.addView(content, new FrameLayout.LayoutParams(-1, -2));
+        if (schedule) {
+            // The owner's latest news (avisos/no-funciona.json on GitHub), across the whole page.
+            board = NoticeBoard.get(this);
+            org.json.JSONObject news = NoticeBoard.news(this);
+            if (news != null) {
+                LinearLayout n = section("!", 0xFFFFB74D, NoticeBoard.text(news, "titulo", getString(R.string.sched_news)),
+                        null, null, null);
+                paragraph(n, news.optString("texto").trim());
+                content.addView(n, margins(0, 4, 0, 12));
+            }
+        }
         LinearLayout cols = new LinearLayout(this);
         cols.setPadding(0, Ui.u(4), 0, Ui.u(12));
-        scroll.addView(cols, new FrameLayout.LayoutParams(-1, -2));
+        content.addView(cols, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout left = vertical(), right = vertical();
         cols.addView(left, new LinearLayout.LayoutParams(0, -2, 1f));
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, -2, 1f);
@@ -294,30 +321,33 @@ public final class RecommendationsActivity extends Activity {
     private View scheduleXuper() {
         LinearLayout s = section("1", 0xFF5B8CFF, "Si decidiste usar Xuper Crystal Clear o Magis TV / Xuper", null,
                 null, "Xuper Crystal Clear " + CRYSTAL_VERSION + "  ·  Magis TV / Xuper " + XUPER_VERSION);
-        steps(s,
+        steps(s, NoticeBoard.list(board, "xuper_pasos",
                 "De día funcionan con normalidad, más o menos de 8:00 a.m. a 10:00 p.m.",
                 "Por la noche, cerca de las 10:00 p.m., su servicio suele caerse.",
                 "Vuelven a funcionar por la mañana, aproximadamente a las 8:00 a.m. Es una hora aproximada: depende del servicio de estas apps, así que algunos días puede ser un poco antes o un poco después.",
-                "Mientras tanto, usa Stremio o XuperAmigOnlyTV para seguir disfrutando de tus programas y series favoritas.");
-        warning(s, "Importante: no actualices ni desinstales",
+                "Mientras tanto, usa Stremio o XuperAmigOnlyTV para seguir disfrutando de tus programas y series favoritas."));
+        warning(s, "Importante: no actualices ni desinstales", NoticeBoard.text(board, "xuper_importante",
                 "Si Xuper Crystal Clear o Magis TV / Xuper dejan de cargar, o te muestran un aviso para actualizarse, haz caso omiso: no las actualices ni las desinstales.\n\n"
-                        + "Se trata de una falla temporal del servicio, frecuente en estos días, y normalmente se resuelve sola por la mañana. Mientras tanto, puedes usar Stremio o XuperAmigOnlyTV.");
+                        + "Se trata de una falla temporal del servicio, frecuente en estos días, y normalmente se resuelve sola por la mañana. Mientras tanto, puedes usar Stremio o XuperAmigOnlyTV."));
         return s;
     }
 
     /** For whoever always uses XuperAmigOnlyTV: it works at night, with an occasional early-morning outage. */
     private View scheduleAmigOnly() {
         LinearLayout s = section("2", 0xFF2AABEE, "Si decidiste usar XuperAmigOnlyTV", null, null, null);
-        paragraph(s, "Puedes usarla a cualquier hora, también en la noche.");
-        warning(s, "En la madrugada",
-                "Algunos días puede dejar de cargar en la madrugada, entre las 3:00 y las 4:00 a.m. Igual que Xuper Crystal Clear y Magis TV / Xuper, vuelve por la mañana, aproximadamente a las 8:00 a.m.");
+        paragraph(s, NoticeBoard.text(board, "amigonly_texto", "Puedes usarla a cualquier hora, también en la noche."));
+        warning(s, "En la madrugada", NoticeBoard.text(board, "amigonly_madrugada",
+                "Algunos días puede dejar de cargar en la madrugada, entre las 3:00 y las 4:00 a.m. Igual que Xuper Crystal Clear y Magis TV / Xuper, vuelve por la mañana, aproximadamente a las 8:00 a.m."));
         return s;
     }
 
     private View scheduleWhy() {
         LinearLayout s = section("?", 0xFF4FD1C5, "¿Por qué pasa?", null, null, null);
-        paragraph(s, "Últimamente estos servicios están presentando fallas, por eso se caen en ese horario. No es una falla de tu TV Box ni de tu internet: no necesitas reiniciarla ni reinstalar las apps.");
-        paragraph(s, "Seguiremos al pendiente: si hay novedades (por ejemplo, si cambia el horario o se soluciona la falla), te avisaremos aquí mismo en Aura con una actualización.");
+        for (String p : NoticeBoard.list(board, "porque",
+                "Últimamente estos servicios están presentando fallas, por eso se caen en ese horario. No es una falla de tu TV Box ni de tu internet: no necesitas reiniciarla ni reinstalar las apps.",
+                "Seguiremos al pendiente: si hay novedades (por ejemplo, si cambia el horario o se soluciona la falla), las verás aquí mismo, hasta arriba de esta pantalla.")) {
+            paragraph(s, p);
+        }
         return s;
     }
 

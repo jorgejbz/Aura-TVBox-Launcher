@@ -137,7 +137,17 @@ final class Card extends LinearLayout {
 
     /** A small number on the tile's corner (what is pending); 0 hides it. */
     void setBadge(int count) {
-        if (count <= 0) {
+        setBadge(count <= 0 ? null : count > 9 ? "9+" : String.valueOf(count), 0xFFFFB74D);
+    }
+
+    /** The tile's name under it (the "Actualizar" tile says "Apps nuevas" when that is all there is). */
+    void setLabel(CharSequence text) {
+        label.setText(text);
+    }
+
+    /** A small pill on the tile's corner with any text and colour; null hides it. */
+    void setBadge(String text, int color) {
+        if (text == null) {
             if (badge != null) badge.setVisibility(GONE);
             return;
         }
@@ -146,7 +156,6 @@ final class Card extends LinearLayout {
             badge.setGravity(Gravity.CENTER);
             badge.setTextColor(0xFF07080B);
             GradientDrawable dot = new GradientDrawable();
-            dot.setColor(0xFFFFB74D);
             dot.setCornerRadius(Ui.uf(9));
             badge.setBackground(dot);
             int h = Ui.u(18);
@@ -157,7 +166,8 @@ final class Card extends LinearLayout {
             lp.setMargins(0, Ui.u(7), Ui.u(7), 0);
             face.addView(badge, lp);
         }
-        badge.setText(count > 9 ? "9+" : String.valueOf(count));
+        ((GradientDrawable) badge.getBackground()).setColor(color);
+        badge.setText(text);
         badge.setVisibility(VISIBLE);
     }
 

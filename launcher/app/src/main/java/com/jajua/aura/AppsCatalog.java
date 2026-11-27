@@ -490,22 +490,36 @@ final class AppsCatalog {
      * What the "Actualizar" shortcut counts: a newer Aura plus the apps from the last check that are still
      * not installed at that version. Reads no network, so it can run on every return home.
      */
-    @SuppressWarnings("deprecation")
     static int pendingCount(Context c) {
+        int[] n = pendingCounts(c);
+        return n[0] + n[1];
+    }
+
+    /**
+     * {updates, new apps}: a newer Aura or a newer version of an installed app, and apps from the folder
+     * that are not installed at all. The tile shows them differently, so a new app is not taken for an update.
+     */
+    @SuppressWarnings("deprecation")
+    static int[] pendingCounts(Context c) {
         PackageManager pm = c.getPackageManager();
-        int n = auraNewer(c) ? 1 : 0;
+        int updates = auraNewer(c) ? 1 : 0, fresh = 0;
         for (String item : prefs(c).getStringSet(PENDING, Collections.<String>emptySet())) {
             int colon = item.lastIndexOf(':');
             if (colon < 0) continue;
+            long code;
             try {
-                long code = Long.parseLong(item.substring(colon + 1));
-                if (versionCode(pm.getPackageInfo(item.substring(0, colon), 0)) >= code) continue;
-            } catch (PackageManager.NameNotFoundException | NumberFormatException e) {
-                // Not installed yet: still pending.
+                code = Long.parseLong(item.substring(colon + 1));
+            } catch (NumberFormatException e) {
+                continue;
             }
-            n++;
+            try {
+                if (versionCode(pm.getPackageInfo(item.substring(0, colon), 0)) >= code) continue;
+                updates++;
+            } catch (PackageManager.NameNotFoundException e) {
+                fresh++;
+            }
         }
-        return n;
+        return new int[] {updates, fresh};
     }
 
     private static SharedPreferences prefs(Context c) {

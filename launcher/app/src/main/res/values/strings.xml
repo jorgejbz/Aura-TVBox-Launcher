@@ -31,7 +31,8 @@
     <string name="tile_info">Sistema</string>
     <string name="tile_info_desc">Datos reales del equipo</string>
     <string name="tile_update">Actualizar</string>
-    <string name="tile_update_desc">Busca versiones nuevas de Aura y apps nuevas</string>
+    <string name="tile_update_desc">Actualizaciones de Aura y de tus apps, y apps nuevas que puedes instalar</string>
+    <string name="tile_new_apps">Apps nuevas</string>
     <string name="info_title">Información del sistema</string>
     <string name="info_close">Cerrar</string>
     <string name="info_android">Android</string>
@@ -105,6 +106,7 @@
     <string name="sched_button">¿No funciona?</string>
     <string name="sched_button_desc">Si Magis TV o Xuper Crystal Clear no cargan, entra aquí</string>
     <string name="sched_title">¿No funciona una app?</string>
+    <string name="sched_news">Novedad</string>
     <string name="sched_subtitle">Horarios de servicio y qué usar mientras tanto  ·  ▲ ▼ para desplazarte</string>
     <string name="update_pill">↑ Aura %1$s</string>
     <string name="update_pill_desc_title">Actualización de Aura</string>
