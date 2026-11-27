@@ -693,11 +693,11 @@ public final class HomeActivity extends Activity implements Card.Listener {
         msg.setLineSpacing(Ui.uf(2), 1f);
         msg.setText(n.optString("texto").trim());
         v.addView(msg);
-        // "No volver a mostrar", ticked from the start: closing it stops the floating notice, while the
-        // message stays in «¿No funciona?» (during its daily hours). Unticking keeps it floating.
+        // "No volver a mostrar", unticked: the person decides. Ticked, closing it stops the floating notice,
+        // while the message stays in «¿No funciona?» (during its daily hours).
         final android.widget.CheckBox hide = new android.widget.CheckBox(this);
         hide.setText(R.string.news_hide);
-        hide.setChecked(true);
+        hide.setChecked(false);
         hide.setTextColor(Ui.TEXT);
         hide.setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.uf(14));
         hide.setButtonTintList(android.content.res.ColorStateList.valueOf(0xFFF5F5F7));

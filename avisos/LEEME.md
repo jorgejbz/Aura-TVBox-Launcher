@@ -43,7 +43,7 @@ Agrega a la novedad:
 
 - `flotante`: sale en una ventana al encender (después de la «Guía de uso») y al regresar de una
   app, con los botones «Entendido» y «Ver más» (abre «¿No funciona?»). La casilla «No volver a
-  mostrar» viene marcada: si la dejan así, ya no les flota, pero el mensaje sigue en «¿No funciona?».
+  mostrar» viene sin marcar: si el cliente la marca, ya no le flota, pero el mensaje sigue en «¿No funciona?».
 - `horario`: horas del día en que existe el mensaje (en «¿No funciona?» y flotante). Fuera de ese
   horario desaparece y vuelve al día siguiente. Conviene terminar a las 19:00, cuando empieza el
   aviso nocturno.
