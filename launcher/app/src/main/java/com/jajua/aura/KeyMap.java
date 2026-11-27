@@ -73,6 +73,22 @@ final class KeyMap {
         p.edit().putBoolean("_service_init", true).apply();
     }
 
+    /**
+     * Turns the button service back on whenever the box has buttons set up and it is off. Android drops
+     * it from the enabled list when Aura is force-stopped (Ajustes › Forzar detención, or a tool), and the
+     * buttons then silently stop working; nobody on these boxes switches it off on purpose.
+     */
+    static void ensureService(Context c) {
+        if (c.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        if (serviceEnabled(c) || all(c).isEmpty()) return;
+        String me = new ComponentName(c, KeyMapService.class).flattenToString();
+        String cur = Settings.Secure.getString(c.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        Settings.Secure.putString(c.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                TextUtils.isEmpty(cur) ? me : cur + ":" + me);
+        Settings.Secure.putInt(c.getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED, 1);
+    }
+
     static String get(Context c, int code) {
         return prefs(c).getString(String.valueOf(code), null);
     }

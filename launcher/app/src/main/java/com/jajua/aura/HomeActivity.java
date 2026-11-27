@@ -251,6 +251,11 @@ public final class HomeActivity extends Activity implements Card.Listener {
             SystemUpgrade.afterBoot(app);
             continueAfterUpdate(app);
         }, "aura-mejoras-update").start();
+        // Two minutes in (after the start-up rush and the cleanup): XuperAmigOnlyTV if the box never had it.
+        main.postDelayed(() -> new Thread(() -> {
+            EssentialApps.ensure(app);
+            main.post(this::refreshBadge);
+        }, "aura-esenciales").start(), 120_000);
         // The owner's "¿No funciona?" news (GitHub), so the button can show its dot without opening it.
         main.postDelayed(() -> new Thread(() -> {
             if (NoticeBoard.refreshIfStale(app, 0)) main.post(this::refreshBadge);
@@ -289,6 +294,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
     @Override
     protected void onStart() {
         super.onStart();
+        // The remote's buttons: on again if a force-stop (Ajustes or a tool) switched their service off.
+        KeyMap.ensureService(this);
         // Coming back from another app (not from one of Aura's own screens, nor the very first start).
         if (!firstStart && !ownScreen) checkNightOnReturn();
         // Best HDMI mode for this TV (a different TV may have been plugged in); only acts when it is not already.
