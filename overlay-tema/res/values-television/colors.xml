@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Aura accent (Ui.ACCENT). Stock: deep teal #80CBC4 / #009688, TV blue #5E97F6 / #75A4F5. -->
+    <color name="material_deep_teal_200">#FF8E9BFF</color>
+    <color name="material_deep_teal_300">#FF8E9BFF</color>
+    <color name="material_deep_teal_500">#FF8E9BFF</color>
+    <color name="accent_material_dark">#FF8E9BFF</color>
+    <color name="accent_material_light">#FF8E9BFF</color>
+</resources>

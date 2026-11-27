@@ -35,6 +35,8 @@ public final class UpdateActivity extends Activity {
     private static final String LATEST =
             "https://api.github.com/repos/jorgejbz/Aura-TVBox-Launcher/releases/latest";
     private static final String ASSET = "Aura.apk";
+    /** From the start-up notice's "Actualizar ahora": skip the offer and download at once. */
+    static final String EXTRA_INSTALL_NOW = "install_now";
     private static final int MAX_APK_BYTES = 20 * 1024 * 1024;
     private static final int TIMEOUT_MS = 15000;
 
@@ -66,6 +68,11 @@ public final class UpdateActivity extends Activity {
             }
             String url = assetUrl(release.getJSONArray("assets"));
             if (url == null) throw new IOException("release without " + ASSET);
+            if (getIntent().getBooleanExtra(EXTRA_INSTALL_NOW, false)) {
+                ui(() -> status(getString(R.string.update_title), getString(R.string.update_downloading), false));
+                download(url);
+                return;
+            }
             ui(() -> offer(version, current, url, release.optString("body", "")));
         } catch (IOException | JSONException | PackageManager.NameNotFoundException e) {
             ui(() -> status(getString(R.string.update_title), getString(R.string.update_error), true));
@@ -135,7 +142,7 @@ public final class UpdateActivity extends Activity {
     }
 
     /** Release notes are GitHub Markdown; the TV dialog shows plain text, without fenced code. */
-    private static String plainNotes(String markdown) {
+    static String plainNotes(String markdown) {
         String s = markdown.replace("\r", "")
                 .replaceAll("(?s)```.*?```", "")
                 .replaceAll("(?m)^#+\\s*", "")

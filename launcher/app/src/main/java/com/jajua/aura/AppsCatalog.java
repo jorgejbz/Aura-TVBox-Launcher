@@ -54,6 +54,7 @@ final class AppsCatalog {
 
     private static final String PENDING = "pending";
     private static final String AURA_LATEST = "aura_latest";
+    private static final String AURA_NOTES = "aura_notes";
     private static final String AURA_RELEASE =
             "https://api.github.com/repos/jorgejbz/Aura-TVBox-Launcher/releases/latest";
 
@@ -460,7 +461,18 @@ final class AppsCatalog {
     static void checkAura(Context c) throws IOException, JSONException {
         JSONObject release = new JSONObject(new String(read(AURA_RELEASE, null), "UTF-8"));
         String tag = release.getString("tag_name").replaceFirst("^[vV]", "");
-        prefs(c).edit().putString(AURA_LATEST, tag).apply();
+        prefs(c).edit().putString(AURA_LATEST, tag)
+                .putString(AURA_NOTES, UpdateActivity.plainNotes(release.optString("body", ""))).apply();
+    }
+
+    /** The newer published Aura (as of the last check), or null when this one is current. */
+    static String auraNewerVersion(Context c) {
+        return auraNewer(c) ? prefs(c).getString(AURA_LATEST, null) : null;
+    }
+
+    /** That release's notes as plain text (may be empty). */
+    static String auraNotes(Context c) {
+        return prefs(c).getString(AURA_NOTES, "");
     }
 
     /** A newer Aura was published (as of the last check). */

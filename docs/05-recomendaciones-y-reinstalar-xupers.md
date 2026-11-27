@@ -117,3 +117,65 @@ de Android, vuelta a versión anterior), `AppLoader.java`, `Defaults.java` (`xup
 - De noche, **de 7:00 p.m. a 8:00 a.m.** (`NIGHT_FROM`/`NIGHT_TO` en HomeActivity), el aviso alterna con **«¿Xuper no carga? Mira
   aquí →»**, que ilumina el botón «¿No funciona?». Fuera de ese horario sólo sale «¿Eres nuevo? Consulta aquí →».
   Usa la hora de la caja: sin internet al encender, las primeras horas pueden ser incorrectas hasta que se sincroniza.
+
+## 7. Aura 1.4.2 (local): aviso de actualización
+
+- Al encender (una vez por arranque, ~8 s después, reintentando ~5 min si aún no hay red) Aura revisa
+  `releases/latest`. Si hay una Aura más nueva, en cuanto la pantalla de inicio está al frente aparece
+  `UpdateNoticeActivity` (grande): «Nueva versión de Aura X», la versión actual, las novedades de la Release
+  (texto desplazable con ▲▼, alto máximo para no tapar los botones) y «Más tarde» / «Actualizar ahora» (enfocado).
+- «Actualizar ahora» abre `UpdateActivity` con `EXTRA_INSTALL_NOW`: descarga e instala directo (sigue comprobando
+  paquete, versión y firma).
+- «Más tarde»: queda un botón chiquito ámbar **«↑ Aura X»** en la cabecera (junto a ¿No funciona?) hasta que se
+  actualice; también lo muestra el revisado diario. Con ese botón el aviso «¿Eres nuevo?» usa su texto corto si no cabe.
+- Las novedades se guardan en `apps_catalog` (`aura_notes`) al revisar GitHub.
+- Probado con una compilación marcada 1.4.0 contra la 1.4.1 real publicada: aviso al iniciar, «Más tarde» → botón,
+  «Actualizar ahora» → instaló la 1.4.1 de GitHub sin ventana. Con la 1.4.2 (sin versión más nueva) no sale nada.
+  Sólo se verá de verdad cuando se publique una versión posterior a la que tenga la caja (p. ej. 1.4.3).
+- Las novedades del aviso grande que no caben se desplazan solas: esperan 3 s, bajan despacio hasta el final,
+  esperan 2.5 s, regresan arriba y repiten. ▲▼ toma el control a mano; tras 8 s sin teclas vuelve a desplazarse.
+- Con el botón «↑ Aura» en la cabecera, el aviso «¿Eres nuevo? Consulta aquí →» se muestra completo en dos líneas
+  (nunca recortado) y la fecha pasa a su forma corta («Jue 26 de nov») si no cabe.
+- **Apps de la carpeta en línea («Buscar apps nuevas» / aviso diario):** lista con casillas, ninguna marcada; OK marca
+  o desmarca; «Instalar (n)» instala sólo las elegidas y está desactivado sin selección. Probado en la caja con VLC.
+
+### 1.4.2 — cuidado de la caja
+
+- **Soporte con QR** (`QrCode.java`, generador propio, probado contra valores del estándar ISO 18004): tarjeta
+  «Soporte» en la Guía de uso y en «¿No funciona?», y QR propio en la tarjeta de Stremio. Cada QR abre Telegram con
+  @jorge_jbz y un mensaje ya escrito (`BoxCare.MSG_SUPPORT` / `MSG_ADDONS`), para saber que viene de un cliente.
+- **Aviso de Xuper cambiado:** ~20 s tras encender, si Magis TV o Crystal Clear no están en la versión recomendada,
+  sale «X cambió de versión» con «Regresar a la …» → `ReinstallActivity` directo a esa app (`EXTRA_PKG`). Una vez por
+  encendido y versión. Probado: 4.99.20 → 4.34.5 descargada de la Release `xupers` real.
+- **Aviso de calor:** con el reloj ya en hora, se anota cada encendido; 3 en 30 min → «Tu TV Box se reinició varias
+  veces» (como máximo cada 2 h), con botón a Recomendaciones. Probado con 3 reinicios.
+- **Probar mi internet** (botón en «¿No funciona?»): ~8 s de descarga del `Xuper.apk` de la Release `xupers` (el
+  servidor de pruebas de Cloudflare respondía 403). Resultado con colores: ≥15 Mbps excelente, ≥5 HD, ≥2 lento.
+- **Liberar espacio** (Sistema, bajo «Almacenamiento»): borra la caché de todas las apps (no datos ni sesiones).
+  Usa `CLEAR_APP_CACHE` si Aura lo tiene (sólo cuando la copia de /system ya es 1.4.2+); si no, `su 0 pm trim-caches`
+  por el adbd local, con reintentos (adbd atiende una conexión a la vez). Probado: borró 50 MB de caché de prueba.
+- **Aviso nocturno** (7:00 p.m.–8:00 a.m.): al encender (esperando a que el reloj esté en hora) y **cada vez que se
+  regresa a Aura desde otra app** (no desde pantallas propias de Aura; nunca dos veces en menos de 1 min). Dice que
+  desde las 10 p.m. Crystal Clear y Magis TV *pueden* dejar de funcionar y que puede usar XuperAmigOnlyTV o Stremio.
+  Casilla «Enterado, no volver a mostrar» (`box_care` → `night_hidden`). Botones: «Ver recomendaciones» (¿No
+  funciona?), «¿Tienes dudas?» (mensaje flotante con el QR de soporte) y «Entendido».
+- **Al regresar de una app** también sale el aviso grande de actualización si hay una Aura más nueva pendiente (además
+  del de cada encendido; nunca dos veces en menos de 1 min). Orden: actualización → nocturno → reinicios/Xuper.
+  Probado con la compilación «1.4.0»: encender de noche (nocturno → actualización), «Más tarde» sin repeticiones, y
+  volver de YouTube (actualización → nocturno).
+- **Tutorial de Botones** («¿Cómo funciona? (tutorial)», primera opción de Botones, arriba de «Asignar un botón…»):
+  foto del control (`res/drawable-nodpi/remote_photo.jpg`, recortada de la foto del producto; los 4 botones de arriba
+  de los de colores se editaron para decir YTB, PVD, GOG, DIN; el recorte sin editar está en
+  `backups/remote_photo_orig.jpg`) con un marco ámbar que late sobre esa fila, los pasos, y «Asignar un botón» directo.
+- **Sin internet:** cada minuto, con la pantalla de inicio a la vista, Aura pide `https://www.google.com/generate_204`
+  (o GitHub si falla). Sin red, o con red pero sin internet (dos intentos), la línea de estado cambia a
+  «Sin internet · Revisa el cable o el módem» en rojo; vuelve sola cuando regresa la conexión. Probado bloqueando
+  80/443 con iptables en la caja.
+- **Texto más grande** (Sistema): los textos de Aura crecen 15 % (`Ui.textPx`, preferencia `display/big_text`); la
+  pantalla se reconstruye al instante. Los diálogos del sistema (AlertDialog) conservan su tamaño.
+- **Resolución HDMI al máximo:** el firmware deja la salida fija de fábrica (`hdmi.vic=16`, 1080p60, en baseparamer),
+  así que una TV 4K se quedaría en 1080p. Aura lee `/sys/class/display/HDMI/modes` (lo que aceptan TV y chip) y, al
+  encender (25 s) y cada vez que se vuelve al inicio, si `mode` no es el mejor (más píxeles, progresivo, más Hz) lo
+  escribe como root por el adbd local. Probado: bajado a 720p a mano → Aura lo regresó a 1080p (el máximo de esta TV).
+  Los menús de Android siguen en 1280×720 (lo fija el kernel/fb0 del fabricante; no se toca); los videos salen a la
+  resolución HDMI. Sistema ahora muestra «1920 × 1080 · 60 Hz (menús 720p)».

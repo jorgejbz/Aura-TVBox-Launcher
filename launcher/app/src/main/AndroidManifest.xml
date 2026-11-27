@@ -18,9 +18,27 @@
         tools:ignore="ProtectedPermissions" />
     <!-- Lets "Desinstalar" open the standard system uninstall dialog. -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- "Liberar espacio" (Sistema): clears the apps' caches; granted to Aura as a privileged system app. -->
+    <uses-permission
+        android:name="android.permission.CLEAR_APP_CACHE"
+        tools:ignore="ProtectedPermissions" />
     <!-- Only granted when Aura is a privileged system app: re-enables the button service after a reset. -->
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Ajustes (SettingsPanel): the Wi-Fi name, "Reiniciar" and "Formatear". The last two are only
+         granted to a privileged system app; without them the panel opens the TV settings' own screens. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.REBOOT"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.MASTER_CLEAR"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Only granted to a privileged system app: the permission switches in PermissionsPanel. -->
+    <uses-permission
+        android:name="android.permission.UPDATE_APP_OPS_STATS"
         tools:ignore="ProtectedPermissions" />
 
     <!-- Android 11+ package visibility: a launcher must see every launchable app. -->
@@ -79,6 +97,131 @@
             </intent-filter>
         </activity>
 
+        <!-- Every settings screen opens in the TV settings side panel, not the full-screen phone
+             settings (SettingsRedirect). Priority only counts while Aura is a system app.
+             Overlay, modify system settings, usage and notification access go to PermissionsPanel. -->
+        <activity
+            android:name=".SettingsRedirect"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter android:priority="900">
+                <action android:name="android.settings.SETTINGS" />
+                <action android:name="com.android.settings.action.SETTINGS" />
+                <action android:name="android.settings.WIFI_SETTINGS" />
+                <action android:name="android.settings.WIRELESS_SETTINGS" />
+                <action android:name="android.settings.WIFI_IP_SETTINGS" />
+                <action android:name="android.settings.WIFI_IF_SETTINGS" />
+                <action android:name="android.settings.AIRPLANE_MODE_SETTINGS" />
+                <action android:name="android.settings.VPN_SETTINGS" />
+                <action android:name="android.net.vpn.SETTINGS" />
+                <action android:name="android.net.wifi.PICK_WIFI_NETWORK" />
+                <action android:name="android.settings.DATA_ROAMING_SETTINGS" />
+                <action android:name="android.settings.NETWORK_OPERATOR_SETTINGS" />
+                <action android:name="android.settings.DATA_USAGE_SETTINGS" />
+                <action android:name="android.settings.APN_SETTINGS" />
+                <action android:name="android.settings.CAST_SETTINGS" />
+                <action android:name="android.settings.NFC_SETTINGS" />
+                <action android:name="android.settings.BLUETOOTH_SETTINGS" />
+                <action android:name="android.settings.DISPLAY_SETTINGS" />
+                <action android:name="com.android.settings.DISPLAY_SETTINGS" />
+                <action android:name="android.settings.NIGHT_DISPLAY_SETTINGS" />
+                <action android:name="android.settings.DREAM_SETTINGS" />
+                <action android:name="android.settings.SOUND_SETTINGS" />
+                <action android:name="com.android.settings.SOUND_SETTINGS" />
+                <action android:name="android.settings.ACTION_OTHER_SOUND_SETTINGS" />
+                <action android:name="android.settings.ZEN_MODE_SETTINGS" />
+                <action android:name="android.settings.NOTIFICATION_SETTINGS" />
+                <action android:name="android.settings.APPLICATION_SETTINGS" />
+                <action android:name="android.settings.MANAGE_APPLICATIONS_SETTINGS" />
+                <action android:name="android.settings.MANAGE_ALL_APPLICATIONS_SETTINGS" />
+                <action android:name="android.settings.MANAGE_DEFAULT_APPS_SETTINGS" />
+                <action android:name="android.settings.HOME_SETTINGS" />
+                <action android:name="android.settings.APP_MEMORY_USAGE" />
+                <action android:name="android.settings.MANAGE_DOMAIN_URLS" />
+                <action android:name="android.settings.APP_NOTIFICATION_SETTINGS" />
+                <action android:name="android.settings.INTERNAL_STORAGE_SETTINGS" />
+                <action android:name="android.settings.MEMORY_CARD_SETTINGS" />
+                <action android:name="android.settings.STORAGE_MANAGER_SETTINGS" />
+                <action android:name="android.settings.BACKUP_AND_RESET_SETTINGS" />
+                <action android:name="android.settings.ACCESSIBILITY_SETTINGS" />
+                <action android:name="android.settings.ACCESSIBILITY_SETTINGS_FOR_SUW" />
+                <action android:name="com.android.settings.ACCESSIBILITY_COLOR_SPACE_SETTINGS" />
+                <action android:name="android.settings.CAPTIONING_SETTINGS" />
+                <action android:name="android.settings.DATE_SETTINGS" />
+                <action android:name="android.settings.LOCALE_SETTINGS" />
+                <action android:name="android.settings.INPUT_METHOD_SETTINGS" />
+                <action android:name="android.settings.INPUT_METHOD_SUBTYPE_SETTINGS" />
+                <action android:name="android.settings.HARD_KEYBOARD_SETTINGS" />
+                <action android:name="android.settings.VOICE_INPUT_SETTINGS" />
+                <action android:name="android.settings.USER_DICTIONARY_SETTINGS" />
+                <action android:name="com.android.settings.TTS_SETTINGS" />
+                <action android:name="android.settings.SECURITY_SETTINGS" />
+                <action android:name="android.settings.PRIVACY_SETTINGS" />
+                <action android:name="android.settings.LOCATION_SOURCE_SETTINGS" />
+                <action android:name="android.settings.USER_SETTINGS" />
+                <action android:name="android.settings.SYNC_SETTINGS" />
+                <action android:name="android.settings.ACCOUNT_SYNC_SETTINGS" />
+                <action android:name="android.settings.ADD_ACCOUNT_SETTINGS" />
+                <action android:name="android.settings.DEVICE_INFO_SETTINGS" />
+                <action android:name="android.settings.SHOW_REGULATORY_INFO" />
+                <action android:name="android.settings.LICENSE" />
+                <action android:name="android.settings.WEBVIEW_SETTINGS" />
+                <action android:name="android.settings.ACTION_PRINT_SETTINGS" />
+                <action android:name="android.settings.APPLICATION_DEVELOPMENT_SETTINGS" />
+                <action android:name="com.android.settings.APPLICATION_DEVELOPMENT_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!-- One app's screen ("Información de la app"): that app's side panel. -->
+            <intent-filter android:priority="900">
+                <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />
+                <action android:name="android.settings.APP_NOTIFICATION_SETTINGS" />
+                <action android:name="android.settings.IGNORE_BACKGROUND_DATA_RESTRICTIONS_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </activity>
+
+        <!-- "Ajustes": the most used settings first, in Aura's side panel (SettingsPanel). -->
+        <activity
+            android:name=".SettingsPanel"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/sp_title"
+            android:theme="@style/Theme.Aura.Transparent" />
+
+        <!-- "Mejoras del sistema": brings an already prepared box up to date (SystemUpgrade). -->
+        <activity
+            android:name=".SystemUpgradeActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/up_title"
+            android:theme="@style/Theme.Aura.Transparent" />
+
+        <!-- The permission switches the TV settings lack, in a side panel like theirs (PermissionsPanel). -->
+        <activity
+            android:name=".PermissionsPanel"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@style/Theme.Aura.Transparent">
+            <intent-filter android:priority="900">
+                <action android:name="android.settings.action.MANAGE_OVERLAY_PERMISSION" />
+                <action android:name="android.settings.action.MANAGE_WRITE_SETTINGS" />
+                <action android:name="android.settings.USAGE_ACCESS_SETTINGS" />
+                <action android:name="android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter android:priority="900">
+                <action android:name="android.settings.action.MANAGE_OVERLAY_PERMISSION" />
+                <action android:name="android.settings.action.MANAGE_WRITE_SETTINGS" />
+                <action android:name="android.settings.USAGE_ACCESS_SETTINGS" />
+                <action android:name="android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </activity>
+
         <!-- "Nuevas apps disponibles": installs apps from the owner's online folder (AppsCatalog). -->
         <activity
             android:name=".AppsActivity"
@@ -94,6 +237,15 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:label="@string/recs_title"
+            android:screenOrientation="landscape" />
+
+        <!-- Start-up notice when GitHub has a newer Aura ("Actualizar ahora" / "Más tarde"). -->
+        <activity
+            android:name=".UpdateNoticeActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/update_title"
             android:screenOrientation="landscape" />
 
         <!-- "Reinstalar Xuper's" (Aura > Sistema): the recommended Xuper apps from the "xupers" release. -->

@@ -20,6 +20,17 @@ for f in /system/etc/aura/bind/*; do
     target=/system/$(basename "$f" | tr '@' '/')
     [ -f "$target" ] || continue
     mylog "bind $target: $(mount -o bind "$f" "$target" 2>&1 && echo ok)"
+    # An app already running (the keyboard starts before this script) keeps the original APK open:
+    # end it so Android starts it again from the patched one (the keyboard comes back by itself).
+    case "$target" in
+        */LatinIME.apk) pkg=com.android.inputmethod.latin ;;
+        */TvSettings.apk) pkg=com.android.tv.settings ;;
+        */Settings.apk) pkg=com.android.settings ;;
+        *) pkg= ;;
+    esac
+    if [ -n "$pkg" ]; then
+        for pid in $(pidof "$pkg"); do kill "$pid" && mylog "restarted $pkg ($pid)"; done
+    fi
 done
 # Rockchip firmware recreates /data/cifsmanager world-writable (0777) on every boot, and its "cifsmanager" init
 # service runs /data/cifsmanager/cifsmanager.sh as root. With SELinux permissive, any app could plant a script there.

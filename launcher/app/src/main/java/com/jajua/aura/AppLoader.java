@@ -66,6 +66,8 @@ final class AppLoader {
                 category.put(pkg, cat);
             }
         }
+        // With the TV settings present, the full-screen phone settings never show (SettingsRedirect).
+        if (byPackage.containsKey(SettingsRedirect.TV)) byPackage.remove("com.android.settings");
 
         List<Entry> apps = new ArrayList<>();
         for (Map.Entry<String, ResolveInfo> e : byPackage.entrySet()) {

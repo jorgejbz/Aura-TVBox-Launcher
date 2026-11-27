@@ -82,6 +82,16 @@ final class StaleSessions {
             cmd.append("su 0 pm install-abandon ").append(id);
         }
         Log.i(TAG, "abandoning " + stale);
+        String out = runCommand(c, cmd.toString());
+        if (out != null) Log.i(TAG, out.trim());
+    }
+
+    /**
+     * Runs a shell command through this box's own adbd (127.0.0.1), so "su 0 …" works; opens ADB for those seconds
+     * if it was closed and closes it again. Returns the output, or null when adbd could not be reached (for example
+     * while a PC is connected: these firmwares serve one adb connection at a time). Worker thread.
+     */
+    static String runCommand(Context c, String command) {
         boolean opened = false;
         try {
             int port = SystemInfo.adbNetworkPort();
@@ -92,11 +102,22 @@ final class StaleSessions {
             }
             if (port <= 0) {
                 Log.w(TAG, "adb did not open");
-                return;
+                return null;
             }
-            Log.i(TAG, AdbLocal.shell(port, cmd.toString(), 30000).trim());
+            // adbd serves one connection at a time: if something else holds it for a moment, try again.
+            IOException last = null;
+            for (int attempt = 0; attempt < 6; attempt++) {
+                try {
+                    return AdbLocal.shell(port, command, 20000);
+                } catch (IOException e) {
+                    last = e;
+                    Thread.sleep(3000);
+                }
+            }
+            throw last;
         } catch (IOException | InterruptedException | RuntimeException ex) {
-            Log.w(TAG, "cleanup failed: " + ex);
+            Log.w(TAG, "command failed: " + ex);
+            return null;
         } finally {
             if (opened) SystemInfo.setAdbNetwork(c, false);
         }
@@ -120,6 +141,11 @@ final class StaleSessions {
         private AdbLocal() {}
 
         static String shell(int port, String command, int timeoutMs) throws IOException {
+            return service(port, "shell:" + command, timeoutMs);
+        }
+
+        /** Any adbd service ("shell:…", "root:", "remount:"); returns what it prints before closing. */
+        static String service(int port, String service, int timeoutMs) throws IOException {
             try (Socket s = new Socket()) {
                 s.connect(new InetSocketAddress("127.0.0.1", port), 3000);
                 s.setSoTimeout(timeoutMs);
@@ -130,7 +156,7 @@ final class StaleSessions {
                 byte[] data = read(in, h);
                 if (h[0] == AUTH) throw new IOException("adb asks for a key");
                 if (h[0] != CNXN) throw new IOException("no CNXN");
-                send(out, OPEN, LOCAL_ID, 0, "shell:" + command + "\0");
+                send(out, OPEN, LOCAL_ID, 0, service + "\0");
                 StringBuilder text = new StringBuilder();
                 while (true) {
                     data = read(in, h);
@@ -138,7 +164,11 @@ final class StaleSessions {
                         text.append(new String(data, "UTF-8"));
                         send(out, OKAY, LOCAL_ID, h[1], "");
                     } else if (h[0] == CLSE) {
-                        send(out, CLSE, LOCAL_ID, h[1], "");
+                        try {
+                            send(out, CLSE, LOCAL_ID, h[1], "");
+                        } catch (IOException gone) {
+                            // "root:" restarts adbd right after answering: the socket is already gone.
+                        }
                         return text.toString();
                     } else if (h[0] != OKAY) {
                         throw new IOException("unexpected " + Integer.toHexString(h[0]));

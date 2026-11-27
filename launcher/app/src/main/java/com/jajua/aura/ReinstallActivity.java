@@ -25,6 +25,8 @@ public final class ReinstallActivity extends Activity {
     /** One reinstall at a time across the whole app (a second window just says so). */
     private static final AtomicBoolean BUSY = new AtomicBoolean();
     private static final int REQ_UNINSTALL = 7;
+    /** Opened from the start-up warning for one app: skip the list and ask about that app. */
+    static final String EXTRA_PKG = "pkg";
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private Future<?> job;
@@ -44,7 +46,16 @@ public final class ReinstallActivity extends Activity {
         }
         owner = true;
         XuperApps.cleanup(this);
-        choose();
+        XuperApps.Target only = XuperApps.target(getIntent().getStringExtra(EXTRA_PKG));
+        if (only != null) {
+            final android.content.Context app = getApplicationContext();
+            worker.execute(() -> {
+                String have = XuperApps.installedVersion(app, only);
+                ui(() -> confirm(only, have));
+            });
+        } else {
+            choose();
+        }
     }
 
     @Override

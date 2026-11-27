@@ -438,8 +438,8 @@ function Etapa-falsificaciones {
     }
     if ($Perf.Ajustes) {
         $script:Bind = Join-Path $root "apks\bind-$($Perf.Archivo)"
-        $nombres = 'priv-app@Settings@Settings.apk', 'priv-app@TvSettings@TvSettings.apk'
-        if (@($nombres | Where-Object { Test-Path (Join-Path $script:Bind $_) }).Count -eq 2) { Info "Ajustes parcheados ya generados: $script:Bind" }
+        $nombres = 'priv-app@Settings@Settings.apk', 'priv-app@TvSettings@TvSettings.apk', 'app@LatinIME@LatinIME.apk'
+        if (@($nombres | Where-Object { Test-Path (Join-Path $script:Bind $_) }).Count -eq 3) { Info "Ajustes parcheados ya generados: $script:Bind" }
         elseif ($Simular) { Write-Host "  [simulado] generar Ajustes parcheados en $script:Bind" -ForegroundColor DarkYellow }
         else {
             if ([int]("0" + (Sh 'grep -c priv-app/.*Settings /proc/mounts'))) { Fallar 'Ajustes ya montados: genera los parcheados desde el respaldo o quita /system/etc/aura/bind y reinicia.' }
@@ -447,8 +447,18 @@ function Etapa-falsificaciones {
             foreach ($app in 'Settings', 'TvSettings') {
                 adb -s $script:S pull "/system/priv-app/$app/$app.apk" (Join-Path $tmp "$app.apk") 2>&1 | Out-Null
                 if ((Ejecutar-Py @((Join-Path $PSScriptRoot 'patch_settings.py'), (Join-Path $tmp "$app.apk"), (Join-Path $tmp "$app.p.apk"))) -ne 0) { Fallar "patch_settings.py no reconoce $app.apk." }
-                & (Join-Path $script:BT 'zipalign.exe') -f -p 4 (Join-Path $tmp "$app.p.apk") (Join-Path $script:Bind "priv-app@$app@$app.apk")
+                $final = Join-Path $tmp "$app.p.apk"
+                # The TV settings side panel in Aura's colours (black, lavender accent).
+                if ($app -eq 'TvSettings') {
+                    if ((Ejecutar-Py @((Join-Path $PSScriptRoot 'tema_aura.py'), $final, (Join-Path $tmp "$app.t.apk"))) -ne 0) { Fallar "tema_aura.py no reconoce $app.apk." }
+                    $final = Join-Path $tmp "$app.t.apk"
+                }
+                & (Join-Path $script:BT 'zipalign.exe') -f -p 4 $final (Join-Path $script:Bind "priv-app@$app@$app.apk")
             }
+            # The keyboard in Aura's colours.
+            adb -s $script:S pull '/system/app/LatinIME/LatinIME.apk' (Join-Path $tmp 'LatinIME.apk') 2>&1 | Out-Null
+            if ((Ejecutar-Py @((Join-Path $PSScriptRoot 'tema_teclado.py'), (Join-Path $tmp 'LatinIME.apk'), (Join-Path $tmp 'LatinIME.t.apk'))) -ne 0) { Fallar 'tema_teclado.py no reconoce LatinIME.apk.' }
+            & (Join-Path $script:BT 'zipalign.exe') -f -p 4 (Join-Path $tmp 'LatinIME.t.apk') (Join-Path $script:Bind 'app@LatinIME@LatinIME.apk')
             Info "Ajustes parcheados en $script:Bind"
         }
     }

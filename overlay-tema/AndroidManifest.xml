@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Static system overlay (/system/vendor/overlay): Android's own accent colour becomes Aura's
+     lavender, so switches and section titles in the TV settings and system dialogs match Aura. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.jajua.aura.tema"
+    android:versionCode="1"
+    android:versionName="1.0">
+    <overlay android:targetPackage="android" android:priority="1" />
+    <application android:hasCode="false" />
+</manifest>

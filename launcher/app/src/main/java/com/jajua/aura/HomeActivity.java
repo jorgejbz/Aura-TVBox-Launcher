@@ -61,6 +61,56 @@ public final class HomeActivity extends Activity implements Card.Listener {
     private View guidePill;
     private android.graphics.drawable.GradientDrawable guideBg;
     private View helpPill;
+    /** Small amber "↑ Aura x.y" in the header while a newer Aura is published (after "Más tarde"). */
+    private TextView updatePill;
+    /** The start-up notice waits until the home screen is in front (never over another app or the guide). */
+    private boolean noticePending;
+    /** Start-up warnings shown one at a time once the home screen is in front (after the update notice). */
+    private boolean heatPending;
+    /** Switched on in the evening or at night (7 p.m. - 8 a.m.; Xuper goes down at 10): say what to use instead. */
+    private boolean nightPending;
+    /** What "Mejoras del sistema" would install; the floating notice is due while this is set. */
+    private List<String> upgradeMissing;
+    /** Set when the improvements started by themselves after an Aura update (no separate notice then). */
+    private volatile boolean upgradeAfterUpdate;
+    private static final int DOWN_FROM = 19, DOWN_TO = 8;
+    private static long lastNightShown = -120_000;
+    private static long lastUpdateShown = -120_000;
+    /** The update notice was asked for by a return from an app (not the start-up check). */
+    private boolean noticeOnReturn;
+    /** The last screen opened from here was Aura's own (true) or another app (false). */
+    private boolean ownScreen;
+    private boolean firstStart = true;
+    private XuperApps.Target xuperChanged;
+    private String xuperChangedVersion;
+    private int bootChecks;
+    private final Runnable bootUpdateCheck = new Runnable() {
+        @Override
+        public void run() {
+            if (isDestroyed() || !UpdateNoticeActivity.dueThisBoot(HomeActivity.this)) return;
+            if (!online()) {
+                // The network can take a while after switching on: try for about five minutes.
+                if (++bootChecks < 10) main.postDelayed(this, 30_000);
+                return;
+            }
+            final Context app = getApplicationContext();
+            catalog.execute(() -> {
+                try {
+                    AppsCatalog.checkAura(app);
+                } catch (Exception e) {
+                    if (++bootChecks < 10) main.postDelayed(bootUpdateCheck, 30_000);
+                    return;
+                }
+                main.post(() -> {
+                    refreshBadge();
+                    if (AppsCatalog.auraNewerVersion(app) != null) {
+                        noticePending = true;
+                        showNoticeIfHome();
+                    }
+                });
+            });
+        }
+    };
     private android.graphics.drawable.GradientDrawable helpBg;
     /**
      * At night the hint alternates with "¿Xuper no carga?": from 7 p.m. (just before Crystal Clear and Magis TV go
@@ -76,7 +126,14 @@ public final class HomeActivity extends Activity implements Card.Listener {
             int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
             boolean night = hour >= NIGHT_FROM || hour < NIGHT_TO;
             hintIsHelp = night && (hintCount++ % 2 == 1);
-            ((TextView) hint).setText(hintIsHelp ? R.string.hint_evening : R.string.hint_new_user);
+            // One line when it fits; otherwise the same words in two lines ("¿Eres nuevo?" / "Consulta aquí →"),
+            // e.g. when the "↑ Aura" button takes room on a 720p TV. The text is never shortened.
+            TextView h = (TextView) hint;
+            String full = getString(hintIsHelp ? R.string.hint_evening : R.string.hint_new_user);
+            float room = ((View) h.getParent()).getWidth() - h.getPaddingRight();
+            boolean fits = h.getPaint().measureText(full) <= room;
+            h.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.uf(fits ? 14 : 12.5f));
+            h.setText(fits ? full : full.replaceFirst("\\? ", "?\n"));
             date.animate().alpha(0f).setDuration(350).start();
             hint.animate().alpha(1f).setStartDelay(200).setDuration(450).start();
             hintGlow(true);
@@ -97,9 +154,33 @@ public final class HomeActivity extends Activity implements Card.Listener {
         @Override
         public void run() {
             updateStatus();
+            checkInternet();
             main.postDelayed(this, 60_000);
         }
     };
+    /** Connected to the modem but the internet does not answer (checked once a minute while home is visible). */
+    private volatile boolean internetDown;
+
+    /** Off the main thread: a tiny HTTPS request to Google's connectivity check (no data about the box). */
+    private void checkInternet() {
+        final ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        new Thread(() -> {
+            boolean down = false;
+            @SuppressWarnings("deprecation")
+            NetworkInfo ni = cm == null ? null : cm.getActiveNetworkInfo();
+            if (ni != null && ni.isConnected()) {
+                down = !BoxCare.internetReachable();
+                if (down) down = !BoxCare.internetReachable(); // A second try before saying so.
+            }
+            final boolean result = down;
+            main.post(() -> {
+                if (result != internetDown && !isDestroyed()) {
+                    internetDown = result;
+                    updateStatus();
+                }
+            });
+        }, "aura-internet").start();
+    }
 
     private AuraView aura;
     private TextView date;
@@ -164,6 +245,29 @@ public final class HomeActivity extends Activity implements Card.Listener {
         // Once per boot, a minute in (after the start-up rush): frees space left by abandoned root/adb installs.
         final Context app = getApplicationContext();
         main.postDelayed(() -> new Thread(() -> StaleSessions.run(app), "aura-limpieza").start(), 60_000);
+        // "Mejoras del sistema": close ADB if an upgrade opened it before rebooting; then, once per Aura
+        // version, offer what an earlier-prepared box is missing (1080p, settings and keyboard style...).
+        new Thread(() -> {
+            SystemUpgrade.afterBoot(app);
+            continueAfterUpdate(app);
+        }, "aura-mejoras-update").start();
+        main.postDelayed(() -> new Thread(this::offerSystemUpgrade, "aura-mejoras").start(), 30_000);
+        // Once per boot: a newer Aura on GitHub gets the big notice (and the small header button).
+        main.postDelayed(bootUpdateCheck, 8_000);
+        // Once per boot: a Xuper that moved away from the recommended version, and restarts that look like heat.
+        main.postDelayed(() -> new Thread(() -> checkXupers(app), "aura-xupers").start(), 20_000);
+        new Thread(() -> {
+            if (BoxCare.waitForClockAndCheckDownHours(app, DOWN_FROM, DOWN_TO)) main.post(() -> {
+                nightPending = true;
+                showNoticeIfHome();
+            });
+        }, "aura-horario").start();
+        new Thread(() -> {
+            if (BoxCare.recordBootAndCheckHeat(app)) main.post(() -> {
+                heatPending = true;
+                showNoticeIfHome();
+            });
+        }, "aura-reinicios").start();
     }
 
     /**
@@ -181,6 +285,15 @@ public final class HomeActivity extends Activity implements Card.Listener {
     @Override
     protected void onStart() {
         super.onStart();
+        // Coming back from another app (not from one of Aura's own screens, nor the very first start).
+        if (!firstStart && !ownScreen) checkNightOnReturn();
+        // Best HDMI mode for this TV (a different TV may have been plugged in); only acts when it is not already.
+        final Context hdmiApp = getApplicationContext();
+        main.postDelayed(() -> new Thread(() -> BoxCare.ensureBestHdmi(hdmiApp), "aura-hdmi").start(),
+                firstStart ? 25_000 : 2_000);
+        firstStart = false;
+        // Apps opened with the remote's buttons (KeyMapService) never pass through here: assume "another app".
+        ownScreen = false;
         IntentFilter f = new IntentFilter();
         f.addAction(Intent.ACTION_TIME_TICK);
         f.addAction(Intent.ACTION_TIME_CHANGED);
@@ -225,8 +338,15 @@ public final class HomeActivity extends Activity implements Card.Listener {
         final Context app = getApplicationContext();
         catalog.execute(() -> {
             int n = AppsCatalog.pendingCount(app);
+            final String newer = AppsCatalog.auraNewerVersion(app);
             main.post(() -> {
                 if (isDestroyed()) return;
+                if (updatePill != null) {
+                    updatePill.setVisibility(newer == null ? View.GONE : View.VISIBLE);
+                    if (newer != null) updatePill.setText(getString(R.string.update_pill, newer));
+                    // The header changed width: re-fit the date after the next layout.
+                    date.post(this::updateDate);
+                }
                 for (int i = 0; i < tileRow.getChildCount(); i++) {
                     View v = tileRow.getChildAt(i);
                     if (v instanceof Card && "tile:update".equals(((Card) v).entry.key)) ((Card) v).setBadge(n);
@@ -403,7 +523,15 @@ public final class HomeActivity extends Activity implements Card.Listener {
         guideBg = (android.graphics.drawable.GradientDrawable) guide.getBackground();
         helpPill = hours;
         helpBg = (android.graphics.drawable.GradientDrawable) hours.getBackground();
-        TextView[] all = {guide, care, hours};
+        updatePill = pill(R.string.update_pill_desc_title, R.string.update_pill_desc,
+                () -> startActivity(new Intent(this, UpdateActivity.class)));
+        updatePill.setTextColor(0xFFFFB74D);
+        android.graphics.drawable.GradientDrawable ub =
+                (android.graphics.drawable.GradientDrawable) updatePill.getBackground();
+        ub.setStroke(Math.max(1, Ui.u(1)), 0x99FFB74D);
+        updatePill.setOnFocusChangeListener(wrapAmber(updatePill, ub, updatePill.getOnFocusChangeListener()));
+        updatePill.setVisibility(View.GONE);
+        TextView[] all = {guide, care, hours, updatePill};
         for (int i = 0; i < all.length; i++) {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             if (i > 0) lp.leftMargin = Ui.u(10);
@@ -415,6 +543,261 @@ public final class HomeActivity extends Activity implements Card.Listener {
         return pills;
     }
 
+    /** Shows the start-up notice only when the home screen itself is in front, once per boot. */
+    private void showNoticeIfHome() {
+        if (!hasWindowFocus() || isFinishing() || isDestroyed()) return;
+        if (dialog != null && dialog.isShowing()) return;
+        if (!noticePending) {
+            if (upgradeMissing != null) showUpgradeNotice();
+            else if (heatPending) showHeatWarning();
+            else if (nightPending) showNightNotice();
+            else if (xuperChanged != null) showXuperChanged();
+            return;
+        }
+        String newer = AppsCatalog.auraNewerVersion(this);
+        noticePending = false;
+        boolean again = noticeOnReturn;
+        noticeOnReturn = false;
+        long now = android.os.SystemClock.elapsedRealtime();
+        // Once per boot at start-up; again each time the user comes back from an app (never twice within a minute).
+        boolean due = again ? now - lastUpdateShown >= 60_000 : UpdateNoticeActivity.dueThisBoot(this);
+        if (newer == null || !due) {
+            main.post(this::showNoticeIfHome); // The other notices (night…) still get their turn.
+            return;
+        }
+        lastUpdateShown = now;
+        UpdateNoticeActivity.markShown(this);
+        startActivity(new Intent(this, UpdateNoticeActivity.class).putExtra(UpdateNoticeActivity.EXTRA_VERSION, newer));
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+    }
+
+    /** Worker thread: remembers the first Xuper whose version is not the recommended one (once per version per boot). */
+    private void checkXupers(Context app) {
+        android.content.SharedPreferences p = app.getSharedPreferences("xuper_guard", MODE_PRIVATE);
+        int boot = BoxCare.bootCount(app);
+        for (XuperApps.Target t : XuperApps.TARGETS) {
+            String have = XuperApps.installedVersion(app, t);
+            if (have == null || have.equals(t.recommended)) continue;
+            String key = t.pkg + ":" + have;
+            if (p.getString("shown", "").equals(boot + "|" + key)) continue;
+            p.edit().putString("shown", boot + "|" + key).apply();
+            main.post(() -> {
+                xuperChanged = t;
+                xuperChangedVersion = have;
+                showNoticeIfHome();
+            });
+            return;
+        }
+    }
+
+    private void showXuperChanged() {
+        final XuperApps.Target t = xuperChanged;
+        final String have = xuperChangedVersion;
+        xuperChanged = null;
+        String name = getString(t.label);
+        dialog = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.guard_title, name))
+                .setMessage(getString(R.string.guard_text, name, have, t.recommended))
+                .setPositiveButton(getString(R.string.guard_fix, t.recommended), (d, w) -> startActivity(
+                        new Intent(this, ReinstallActivity.class).putExtra(ReinstallActivity.EXTRA_PKG, t.pkg)))
+                .setNegativeButton(R.string.update_later, null)
+                .setOnDismissListener(d -> main.post(this::showNoticeIfHome))
+                .show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus();
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(600), -2);
+    }
+
+    /** The floating start-up notice for the hours when Xuper does not work. */
+    private void showNightNotice() {
+        nightPending = false;
+        if (BoxCare.nightHidden(this)) return;
+        // Never twice in a row (start-up check and return from an app can meet).
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (now - lastNightShown < 60_000) return;
+        lastNightShown = now;
+
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        int pad = Ui.u(24);
+        v.setPadding(pad, Ui.u(8), pad, 0);
+        TextView msg = Ui.text(this, 14.5f, Ui.regular, 0.9f);
+        msg.setSingleLine(false);
+        msg.setEllipsize(null);
+        msg.setLineSpacing(Ui.uf(2), 1f);
+        msg.setText(R.string.night_text);
+        v.addView(msg);
+        final android.widget.CheckBox hide = new android.widget.CheckBox(this);
+        hide.setText(R.string.night_hide);
+        hide.setTextColor(Ui.TEXT);
+        hide.setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.uf(14));
+        hide.setButtonTintList(android.content.res.ColorStateList.valueOf(0xFFF5F5F7));
+        final android.graphics.drawable.GradientDrawable hb = new android.graphics.drawable.GradientDrawable();
+        hb.setCornerRadius(Ui.uf(10));
+        hb.setColor(0x00000000);
+        hide.setBackground(hb);
+        hide.setPadding(Ui.u(4), Ui.u(6), Ui.u(12), Ui.u(6));
+        hide.setOnFocusChangeListener((x, has) -> hb.setColor(has ? 0x33FFFFFF : 0x00000000));
+        v.addView(hide, margins(0, 12, 0, 0));
+
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle(R.string.night_title)
+                .setView(v)
+                .setPositiveButton(R.string.heat_ok, null)
+                .setNeutralButton(R.string.night_more, (d, w) -> startActivity(
+                        new Intent(this, RecommendationsActivity.class)
+                                .putExtra(RecommendationsActivity.EXTRA_SCHEDULE, true)))
+                .setOnDismissListener(d -> {
+                    if (hide.isChecked()) BoxCare.setNightHidden(this);
+                    main.post(this::showNoticeIfHome);
+                });
+        dialog = b.show();
+        final AlertDialog night = dialog;
+        // "¿Tienes dudas?" right after "Ver recomendaciones", in the dialog's own button style.
+        android.widget.Button more = night.getButton(AlertDialog.BUTTON_NEUTRAL);
+        if (more != null && more.getParent() instanceof ViewGroup) {
+            ViewGroup bar = (ViewGroup) more.getParent();
+            android.widget.Button ask = new android.widget.Button(night.getContext(), null,
+                    android.R.attr.buttonBarButtonStyle);
+            ask.setText(R.string.night_ask);
+            ask.setTextColor(more.getTextColors());
+            ask.setTextSize(TypedValue.COMPLEX_UNIT_PX, more.getTextSize());
+            ask.setTypeface(more.getTypeface());
+            ask.setOnClickListener(x -> {
+                night.dismiss();
+                main.post(this::showSupportQr);
+            });
+            bar.addView(ask, bar.indexOfChild(more) + 1, new LinearLayout.LayoutParams(-2, -2));
+        }
+        android.widget.Button ok = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (ok != null) ok.requestFocus();
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(660), -2);
+    }
+
+    /** Floating "¿Tienes dudas?": the support QR (Telegram with the message already written). */
+    private void showSupportQr() {
+        if (isFinishing() || isDestroyed()) return;
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        int pad = Ui.u(24);
+        row.setPadding(pad, Ui.u(8), pad, Ui.u(4));
+        QrCode qr = QrCode.encode(BoxCare.telegramLink(BoxCare.MSG_SUPPORT));
+        if (qr != null) {
+            android.widget.ImageView img = new android.widget.ImageView(this);
+            android.graphics.drawable.BitmapDrawable bd =
+                    new android.graphics.drawable.BitmapDrawable(getResources(), qr.toBitmap(4, 3));
+            bd.setFilterBitmap(false);
+            img.setImageDrawable(bd);
+            int side = Ui.u(170);
+            row.addView(img, new LinearLayout.LayoutParams(side, side));
+        }
+        TextView t = Ui.text(this, 15, Ui.regular, 0.9f);
+        t.setSingleLine(false);
+        t.setEllipsize(null);
+        t.setLineSpacing(Ui.uf(3), 1f);
+        t.setText(R.string.ask_text);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0, -2, 1f);
+        tlp.leftMargin = Ui.u(20);
+        row.addView(t, tlp);
+        dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.night_ask)
+                .setView(row)
+                .setPositiveButton(R.string.info_close, null)
+                .setOnDismissListener(d -> main.post(this::showNoticeIfHome))
+                .show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus();
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(600), -2);
+    }
+
+    /** Back on the home screen from another app in the evening or at night: the notice again (unless turned off). */
+    private void checkNightOnReturn() {
+        // A newer Aura first (big notice), then the night notice.
+        if (AppsCatalog.auraNewerVersion(this) != null) {
+            noticePending = true;
+            noticeOnReturn = true;
+        }
+        if (BoxCare.inHours(DOWN_FROM, DOWN_TO) && !BoxCare.nightHidden(this)) nightPending = true;
+        showNoticeIfHome();
+    }
+
+    /** Aura's own screens (guide, Sistema, updates…) are not "leaving to an app". */
+    @Override
+    public void startActivity(Intent intent, Bundle options) {
+        android.content.ComponentName cn = intent.getComponent();
+        ownScreen = cn != null && getPackageName().equals(cn.getPackageName());
+        super.startActivity(intent, options);
+    }
+
+    private Entry findApp(String pkg) {
+        for (Entry e : apps) if (pkg.equals(e.packageName)) return e;
+        return null;
+    }
+
+    private void showHeatWarning() {
+        heatPending = false;
+        dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.heat_title)
+                .setMessage(R.string.heat_text)
+                .setPositiveButton(R.string.heat_ok, null)
+                .setNeutralButton(R.string.care_button, (d, w) -> openRecommendations(true, true))
+                .setOnDismissListener(d -> main.post(this::showNoticeIfHome))
+                .show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus();
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(600), -2);
+    }
+
+    /** "Liberar espacio" in Sistema: clears the apps' caches and says how much was freed. */
+    private View freeSpaceButton() {
+        final TextView b = Ui.text(this, 14, Ui.medium, 1f);
+        b.setText(R.string.free_space);
+        b.setPadding(Ui.u(12), Ui.u(6), Ui.u(12), Ui.u(6));
+        final android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setCornerRadius(Ui.uf(10));
+        bg.setColor(0x1AFFFFFF);
+        b.setBackground(bg);
+        b.setFocusable(true);
+        b.setFocusableInTouchMode(true);
+        b.setClickable(true);
+        b.setOnFocusChangeListener((v, has) -> {
+            bg.setColor(has ? 0xFFF5F5F7 : 0x1AFFFFFF);
+            b.setTextColor(has ? 0xFF07080B : Ui.TEXT);
+        });
+        b.setOnClickListener(v -> {
+            b.setEnabled(false);
+            b.setText(R.string.free_space_working);
+            final Context app = getApplicationContext();
+            new Thread(() -> {
+                long freed = BoxCare.freeSpace(app);
+                main.post(() -> {
+                    if (isDestroyed()) return;
+                    Toast.makeText(this, freed > 1024 * 1024 ? getString(R.string.free_space_done, SystemInfo.size(freed))
+                            : getString(R.string.free_space_none), Toast.LENGTH_LONG).show();
+                    updateStatus();
+                    if (dialog != null && dialog.isShowing()) {
+                        dialog.dismiss();
+                        showSystemInfo();
+                    }
+                });
+            }, "aura-espacio").start();
+        });
+        return b;
+    }
+
+    @SuppressWarnings("deprecation")
+    private boolean online() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        NetworkInfo ni = cm == null ? null : cm.getActiveNetworkInfo();
+        return ni != null && ni.isConnected();
+    }
+
+    /** The update pill keeps its amber look when it loses the focus (the shared pill style would make it grey). */
+    private static View.OnFocusChangeListener wrapAmber(final TextView pill,
+            final android.graphics.drawable.GradientDrawable bg, final View.OnFocusChangeListener base) {
+        return (v, has) -> {
+            if (base != null) base.onFocusChange(v, has);
+            if (!has) pill.setTextColor(0xFFFFB74D);
+        };
+    }
+
     /** "¿Eres nuevo? Consulta la Guía de uso →": never takes focus, only fades in and out. */
     private View newUserHint() {
         TextView t = Ui.text(this, 14, Ui.medium, 1f);
@@ -423,6 +806,11 @@ public final class HomeActivity extends Activity implements Card.Listener {
         t.setAlpha(0f);
         t.setFocusable(false);
         t.setPadding(0, 0, Ui.u(10), 0);
+        t.setSingleLine(false);
+        t.setMaxLines(2);
+        t.setEllipsize(null);
+        t.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        t.setLineSpacing(0f, 0.92f);
         return t;
     }
 
@@ -584,6 +972,77 @@ public final class HomeActivity extends Activity implements Card.Listener {
     }
 
     /**
+     * Worker thread, once per boot: if this box still lacks system improvements, queue the floating
+     * notice ("Instalar ahora" / "Más tarde"). After "Más tarde" it comes back on the next boot; once
+     * installed there is nothing missing and it never shows again.
+     */
+    private void offerSystemUpgrade() {
+        Context app = getApplicationContext();
+        // One notice at a time: a newer Aura comes first, and updating it installs these too.
+        if (upgradeAfterUpdate || AppsCatalog.auraNewerVersion(app) != null) return;
+        android.content.SharedPreferences p = app.getSharedPreferences("system_upgrade", MODE_PRIVATE);
+        int boot = BoxCare.bootCount(app);
+        if (boot >= 0 && p.getInt("notice_boot", -1) == boot) return;
+        SystemUpgrade.Manifest m = SystemUpgrade.manifest();
+        if (m == null) return;
+        List<String> missing = SystemUpgrade.missing(app, m);
+        if (missing.isEmpty()) return;
+        p.edit().putInt("notice_boot", boot).apply();
+        main.post(() -> {
+            upgradeMissing = missing;
+            showNoticeIfHome();
+        });
+    }
+
+    /**
+     * Worker thread. Right after "Actualizar" installed this Aura, the system improvements follow by
+     * themselves: the update notice (and the release notes on older Auras) already said the box would
+     * restart once. Nothing happens if nothing is missing.
+     */
+    private void continueAfterUpdate(Context app) {
+        if (!SystemUpgrade.justUpdated(app)) return;
+        SystemUpgrade.Manifest m = SystemUpgrade.manifest();
+        if (m == null || SystemUpgrade.missing(app, m).isEmpty()) return;
+        upgradeAfterUpdate = true;
+        main.postDelayed(() -> {
+            if (isDestroyed()) return;
+            startActivity(new Intent(this, SystemUpgradeActivity.class)
+                    .putExtra(SystemUpgradeActivity.EXTRA_NOW, true)
+                    .putExtra(SystemUpgradeActivity.EXTRA_AFTER_UPDATE, true));
+        }, 3_000);
+    }
+
+    /** The floating notice for "Mejoras del sistema", in the same style as the night notice. */
+    private void showUpgradeNotice() {
+        List<String> missing = upgradeMissing;
+        upgradeMissing = null;
+        StringBuilder list = new StringBuilder();
+        for (String id : missing) list.append("•  ").append(SystemUpgrade.label(this, id)).append('\n');
+
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        v.setPadding(Ui.u(24), Ui.u(8), Ui.u(24), 0);
+        TextView msg = Ui.text(this, 14.5f, Ui.regular, 0.9f);
+        msg.setSingleLine(false);
+        msg.setEllipsize(null);
+        msg.setLineSpacing(Ui.uf(2), 1f);
+        msg.setText(getString(R.string.upn_text, list.toString().trim()));
+        v.addView(msg);
+
+        dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.upn_title)
+                .setView(v)
+                .setPositiveButton(R.string.upn_install, (d, w) -> startActivity(
+                        new Intent(this, SystemUpgradeActivity.class).putExtra(SystemUpgradeActivity.EXTRA_NOW, true)))
+                .setNegativeButton(R.string.upn_later, null)
+                .setOnDismissListener(d -> main.post(this::showNoticeIfHome))
+                .show();
+        android.widget.Button ok = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (ok != null) ok.requestFocus();
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(600), -2);
+    }
+
+    /**
      * Left on the first card and right on the last one stay put, as on Apple TV. Without this
      * Android searches "anything to the right" and jumps into a different row.
      */
@@ -609,8 +1068,9 @@ public final class HomeActivity extends Activity implements Card.Listener {
         // Some firmwares ship both the phone and the TV settings: use the TV one, and only show it once.
         Entry tvSettings = byPackage.get("com.android.tv.settings");
         if (tvSettings != null) {
+            // Aura's Ajustes panel (most used settings first), which opens the TV settings' panels.
             tiles.add(new Entry("tile:settings", tvSettings.packageName, getString(R.string.tile_settings),
-                    getString(R.string.tile_settings_desc), tvSettings.intent, false));
+                    getString(R.string.tile_settings_desc), new Intent(this, SettingsPanel.class), false));
         } else {
             addIfResolvable(tiles, "tile:settings", R.string.tile_settings, R.string.tile_settings_desc,
                     new Intent(Settings.ACTION_SETTINGS));
@@ -735,6 +1195,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
     private void showKeyMap() {
         final List<CharSequence> labels = new ArrayList<>();
         final List<Runnable> actions = new ArrayList<>();
+        labels.add(getString(R.string.keys_tutorial));
+        actions.add(this::showKeysTutorial);
         labels.add(getString(R.string.keys_assign));
         actions.add(this::captureKey);
         for (Map.Entry<Integer, String> m : KeyMap.all(this).entrySet()) {
@@ -745,13 +1207,68 @@ public final class HomeActivity extends Activity implements Card.Listener {
         if (!KeyMap.serviceEnabled(this)) {
             labels.add(getString(R.string.keys_enable));
             actions.add(() -> launch(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), getString(R.string.keys_enable), null));
+                    .setClass(this, SettingsRedirect.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), getString(R.string.keys_enable), null));
         }
         AlertDialog.Builder b = new AlertDialog.Builder(this)
                 .setTitle(R.string.keys_title)
                 .setItems(labels.toArray(new CharSequence[0]), (d, which) -> actions.get(which).run());
         if (!KeyMap.serviceEnabled(this)) b.setMessage(R.string.keys_disabled_note);
         dialog = b.show();
+    }
+
+    /**
+     * "¿Cómo funciona?": the box's remote (photo) with the coloured buttons outlined, and the steps to give each one
+     * an app. Back to the Botones list when closed.
+     */
+    private void showKeysTutorial() {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        int pad = Ui.u(22);
+        row.setPadding(pad, Ui.u(6), pad, 0);
+
+        // The photo, with an amber outline over the YTB / PVD / GOG / DIN row (measured on remote_photo.jpg).
+        final int photoH = Ui.u(300), photoW = Math.round(photoH * 408f / 1160f);
+        FrameLayout photo = new FrameLayout(this);
+        android.widget.ImageView img = new android.widget.ImageView(this);
+        img.setImageResource(R.drawable.remote_photo);
+        img.setScaleType(android.widget.ImageView.ScaleType.FIT_XY);
+        photo.addView(img, new FrameLayout.LayoutParams(photoW, photoH));
+        View ring = new View(this);
+        android.graphics.drawable.GradientDrawable rd = new android.graphics.drawable.GradientDrawable();
+        rd.setCornerRadius(Ui.uf(8));
+        rd.setStroke(Math.max(2, Ui.u(2.5f)), 0xFFFFB74D);
+        ring.setBackground(rd);
+        FrameLayout.LayoutParams rlp = new FrameLayout.LayoutParams(Math.round(photoW * 0.80f),
+                Math.round(photoH * 0.072f));
+        rlp.leftMargin = Math.round(photoW * 0.10f);
+        rlp.topMargin = Math.round(photoH * 0.110f);
+        photo.addView(ring, rlp);
+        // A slow pulse draws the eye to those buttons without getting in the way.
+        android.animation.ObjectAnimator pulse = android.animation.ObjectAnimator.ofFloat(ring, "alpha", 1f, 0.25f);
+        pulse.setDuration(900);
+        pulse.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+        pulse.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+        pulse.start();
+        row.addView(photo);
+
+        TextView steps = Ui.text(this, 14.5f, Ui.regular, 0.92f);
+        steps.setSingleLine(false);
+        steps.setEllipsize(null);
+        steps.setLineSpacing(Ui.uf(3), 1f);
+        steps.setText(R.string.keys_tutorial_text);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(0, -2, 1f);
+        slp.leftMargin = Ui.u(22);
+        row.addView(steps, slp);
+
+        dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.keys_tutorial_title)
+                .setView(row)
+                .setPositiveButton(R.string.keys_tutorial_go, (d, w) -> captureKey())
+                .setNegativeButton(R.string.info_close, (d, w) -> showKeyMap())
+                .setOnDismissListener(d -> pulse.cancel())
+                .show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus();
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(720), -2);
     }
 
     /** Waits for one remote button. The service sees it first (even keys the firmware grabs). */
@@ -843,6 +1360,9 @@ public final class HomeActivity extends Activity implements Card.Listener {
                 SystemInfo.size(mem[1]), SystemInfo.size(mem[0])), null);
         infoRow(list, R.string.info_storage, getString(R.string.info_of,
                 SystemInfo.size(disk[1]), SystemInfo.size(disk[0])), null);
+        final View freeBtn = freeSpaceButton();
+        freeBtn.setId(View.generateViewId());
+        list.addView(freeBtn, margins(0, 8, 0, 0));
         infoRow(right, R.string.info_display, SystemInfo.display(this), null);
         infoRow(right, R.string.info_ip, SystemInfo.ipAddress(this), null);
         // Which boxes still need Actualizar-Aura-TVBox.bat: the /system copy decides the install permission.
@@ -850,7 +1370,30 @@ public final class HomeActivity extends Activity implements Card.Listener {
         infoRow(right, R.string.info_aura, sys == null || sys.equals(mine) ? mine
                 : getString(R.string.info_aura_system, mine, sys), null);
         // The one choice in this window: only meaningful when Aura can install without Android's screen.
-        if (Installer.quiet(this)) right.addView(autoUpdateSwitch(), margins(0, 12, 0, 0));
+        // "Texto más grande": rebuilds the home screen at once (Aura's texts grow 15 %).
+        View big = settingSwitch(R.string.info_big_text, Ui.bigText(this), on -> {
+            Ui.setBigText(this, on);
+            main.postDelayed(() -> {
+                if (dialog != null) dialog.dismiss();
+                Ui.init(this);
+                setContentView(buildLayout());
+                updateDate();
+                updateStatus();
+                render(apps, null);
+                showSystemInfo();
+            }, 250);
+        });
+        big.setId(View.generateViewId());
+        // Left/right go straight between the controls of this window.
+        big.setNextFocusLeftId(freeBtn.getId());
+        freeBtn.setNextFocusRightId(big.getId());
+        if (Installer.quiet(this)) {
+            View sw = autoUpdateSwitch();
+            sw.setId(View.generateViewId());
+            sw.setNextFocusLeftId(freeBtn.getId());
+            right.addView(sw, switchParams(12));
+        }
+        right.addView(big, switchParams(4));
         final int adbPort = SystemInfo.adbNetworkPort();
         infoRow(right, R.string.info_adb, adbPort > 0 ? getString(R.string.adb_open, adbPort)
                 : getString(R.string.adb_closed), adbPort > 0 ? getString(R.string.adb_open_note) : null);
@@ -910,16 +1453,34 @@ public final class HomeActivity extends Activity implements Card.Listener {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus && status != null) updateStatus();
+        if (hasFocus) showNoticeIfHome();
     }
 
     /** "Actualizar apps de madrugada": reachable with the arrows, OK switches it, saved at once. */
     private View autoUpdateSwitch() {
+        return settingSwitch(R.string.info_auto_update, AutoUpdateJob.enabled(this),
+                on -> AutoUpdateJob.setEnabled(this, on));
+    }
+
+    /** Full column width, so the toggles of the Sistema window line up. */
+    private static LinearLayout.LayoutParams switchParams(float top) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.topMargin = Ui.u(top);
+        return lp;
+    }
+
+    interface OnSwitch {
+        void changed(boolean on);
+    }
+
+    /** A switch row of the Sistema window: reachable with the arrows, OK switches it, saved at once. */
+    private android.widget.Switch settingSwitch(int text, boolean checked, OnSwitch onChange) {
         android.widget.Switch s = new android.widget.Switch(this);
-        s.setText(R.string.info_auto_update);
+        s.setText(text);
         s.setTextColor(Ui.TEXT);
-        s.setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.uf(15));
+        s.setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.textPx(15));
         s.setTypeface(Ui.medium);
-        s.setChecked(AutoUpdateJob.enabled(this));
+        s.setChecked(checked);
         s.setFocusable(true);
         int p = Ui.u(8);
         s.setPadding(p, p, p, p);
@@ -928,7 +1489,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
         focus.setColor(0x00000000);
         s.setBackground(focus);
         s.setOnFocusChangeListener((v, has) -> focus.setColor(has ? 0x33FFFFFF : 0x00000000));
-        s.setOnCheckedChangeListener((b, on) -> AutoUpdateJob.setEnabled(this, on));
+        s.setOnCheckedChangeListener((b, on) -> onChange.changed(on));
         return s;
     }
 
@@ -991,7 +1552,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
         }
         labels.add(getString(R.string.opt_info));
         actions.add(() -> launch(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.fromParts("package", e.packageName, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                Uri.fromParts("package", e.packageName, null)).setClass(this, SettingsRedirect.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 e.label, null));
         if (e.removable) {
             labels.add(getString(R.string.opt_uninstall));
@@ -1017,10 +1579,19 @@ public final class HomeActivity extends Activity implements Card.Listener {
     // ---------------------------------------------------------------- header
 
     private void updateDate() {
+        String full = formatDate("EEEEdMMMM");
+        View box = (View) date.getParent();
+        // "Jueves, 26 de noviembre" when it fits; "Jue, 26 nov" when the header is crowded ("↑ Aura" on 720p).
+        date.setText(box.getWidth() == 0 || date.getPaint().measureText(full) <= box.getWidth() ? full
+                : formatDate("EEEdMMM"));
+        if (box.getWidth() == 0) box.post(this::updateDate);
+    }
+
+    private static String formatDate(String skeleton) {
         Locale loc = Locale.getDefault();
-        String pattern = android.text.format.DateFormat.getBestDateTimePattern(loc, "EEEEdMMMM");
-        String s = new SimpleDateFormat(pattern, loc).format(new Date());
-        date.setText(s.isEmpty() ? s : s.substring(0, 1).toUpperCase(loc) + s.substring(1));
+        String pattern = android.text.format.DateFormat.getBestDateTimePattern(loc, skeleton);
+        String s = new SimpleDateFormat(pattern, loc).format(new Date()).replace(".", "");
+        return s.isEmpty() ? s : s.substring(0, 1).toUpperCase(loc) + s.substring(1);
     }
 
     @SuppressWarnings("deprecation")
@@ -1033,6 +1604,21 @@ public final class HomeActivity extends Activity implements Card.Listener {
             else if (ni.getType() == ConnectivityManager.TYPE_WIFI) net = getString(R.string.net_wifi);
             else net = ni.getTypeName();
         }
+        boolean linked = ni != null && ni.isConnected();
+        if (!linked || internetDown) {
+            // No network, or connected to the modem but with no internet: say it clearly, in red.
+            // Say what to check: nothing connected (choose a Wi-Fi in Red), a Wi-Fi without internet, or the cable.
+            int msg = !linked ? R.string.status_no_connection
+                    : ni.getType() == ConnectivityManager.TYPE_WIFI ? R.string.status_no_internet_wifi
+                    : R.string.status_no_internet;
+            android.text.SpannableString s = new android.text.SpannableString(getString(msg));
+            s.setSpan(new android.text.style.ForegroundColorSpan(0xFFFF6E5A), 0, s.length(), 0);
+            s.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, s.length(), 0);
+            status.setText(s);
+            status.setAlpha(1f);
+            return;
+        }
+        status.setAlpha(0.55f);
         long free = SystemInfo.storage()[1];
         String text = net + "  ·  " + getString(R.string.storage_free, SystemInfo.size(free));
         // Open ADB lets anyone on the network control the box: say so on the home screen, not only in Sistema.

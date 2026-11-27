@@ -50,6 +50,9 @@ final class Viewport extends FrameLayout {
 
     /** Scrolls so that {@code v} (any descendant) is comfortably on screen. */
     void reveal(View v, boolean animate) {
+        // A focus callback can arrive after the activity was recreated (density or
+        // resolution change), with a card from the old view tree: ignore it.
+        if (!isDescendant(v)) return;
         v.getDrawingRect(tmp);
         offsetDescendantRectToMyCoords(v, tmp);
         int x = getScrollX(), y = getScrollY();
@@ -63,6 +66,13 @@ final class Viewport extends FrameLayout {
             else if (tmp.left - edge < x) x = tmp.left - edge;
         }
         smoothTo(clamp(x, maxX()), clamp(y, maxY()), animate);
+    }
+
+    private boolean isDescendant(View v) {
+        for (android.view.ViewParent p = v.getParent(); p != null; p = p.getParent()) {
+            if (p == this) return true;
+        }
+        return false;
     }
 
     void reset() {

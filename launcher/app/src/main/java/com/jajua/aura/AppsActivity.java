@@ -66,29 +66,50 @@ public final class AppsActivity extends Activity {
         }
     }
 
+    /**
+     * The user ticks which apps to install (OK on a line ticks or unticks it); nothing is ticked at first, so
+     * nothing gets installed that the user did not choose. "Instalar (n)" installs only the ticked ones.
+     */
     private void offer(List<AppsCatalog.Offer> offers) {
         AppsCatalog.markSeen(this, offers);
-        StringBuilder text = new StringBuilder();
-        for (AppsCatalog.Offer o : offers) {
-            text.append("•  ").append(o.label);
-            if (!o.versionName.isEmpty()) text.append(' ').append(o.versionName);
-            text.append("  (").append(getString(o.update ? R.string.apps_kind_update : R.string.apps_kind_new))
-                    .append(")\n");
+        CharSequence[] items = new CharSequence[offers.size()];
+        final boolean[] chosen = new boolean[offers.size()];
+        for (int i = 0; i < items.length; i++) {
+            AppsCatalog.Offer o = offers.get(i);
+            StringBuilder t = new StringBuilder(o.label);
+            if (!o.versionName.isEmpty()) t.append(' ').append(o.versionName);
+            t.append("  (").append(getString(o.update ? R.string.apps_kind_update : R.string.apps_kind_new)).append(')');
+            items[i] = t;
         }
-        text.append('\n').append(getString(R.string.apps_question));
         close();
         dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.apps_title)
-                .setMessage(text.toString())
+                .setTitle(R.string.apps_choose)
+                .setMultiChoiceItems(items, chosen, (d, which, on) -> {
+                    chosen[which] = on;
+                    updateInstallButton(chosen);
+                })
                 .setPositiveButton(R.string.apps_install, (d, w) -> {
                     queue.clear();
-                    queue.addAll(offers);
+                    for (int i = 0; i < chosen.length; i++) if (chosen[i]) queue.add(offers.get(i));
                     next();
                 })
                 .setNegativeButton(R.string.update_later, (d, w) -> finish())
                 .setOnCancelListener(d -> finish())
                 .show();
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus();
+        updateInstallButton(chosen);
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(600), -2);
+        dialog.getListView().requestFocus();
+    }
+
+    /** "Instalar (2)", or greyed out while nothing is ticked. */
+    private void updateInstallButton(boolean[] chosen) {
+        if (dialog == null) return;
+        int n = 0;
+        for (boolean c : chosen) if (c) n++;
+        android.widget.Button b = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (b == null) return;
+        b.setEnabled(n > 0);
+        b.setText(n > 0 ? getString(R.string.apps_install_n, n) : getString(R.string.apps_install));
     }
 
     /** Downloads (if needed) and installs the next app; the installer's answer brings us back here. */

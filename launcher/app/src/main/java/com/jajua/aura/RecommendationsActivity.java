@@ -56,6 +56,10 @@ public final class RecommendationsActivity extends Activity {
     private boolean manual;
     private boolean care;
     private boolean schedule;
+    private View speedCard;
+    private TextView speedResult;
+    private TextView speedButton;
+    private Thread speedThread;
 
     // ------------------------------------------------------------ when to show
 
@@ -189,8 +193,11 @@ public final class RecommendationsActivity extends Activity {
 
         if (schedule) {
             left.addView(scheduleXuper());
+            speedCard = speedCard();
+            left.addView(speedCard, margins(0, 16, 0, 0));
             right.addView(scheduleAmigOnly());
             right.addView(scheduleWhy(), margins(0, 16, 0, 0));
+            right.addView(supportCard("✉"), margins(0, 16, 0, 0));
         } else if (care) {
             left.addView(careInternet());
             left.addView(careHeat(), margins(0, 16, 0, 0));
@@ -202,6 +209,7 @@ public final class RecommendationsActivity extends Activity {
             left.addView(magis());
             left.addView(crystal(), margins(0, 16, 0, 0));
             left.addView(moreApps(), margins(0, 16, 0, 0));
+            left.addView(supportCard("F"), margins(0, 16, 0, 0));
             right.addView(amigonly());
             right.addView(stremio(), margins(0, 16, 0, 0));
         }
@@ -264,6 +272,7 @@ public final class RecommendationsActivity extends Activity {
                 "Listo: la TV Box entra sola a tu cuenta en unos segundos.");
         paragraph(s, "El código dura 5 minutos. Si se vence, selecciona «Request a new link» en la TV para obtener uno nuevo.");
         note(s, "¿Necesitas los addons (estos sirven para las películas y series gratuitas)? Comunícate por Telegram con @jorge_jbz.");
+        qrRow(s, BoxCare.MSG_ADDONS, "Escanéalo con tu celular: se abrirá Telegram con el mensaje para pedir los addons.");
         return s;
     }
 
@@ -308,6 +317,103 @@ public final class RecommendationsActivity extends Activity {
         LinearLayout s = section("?", 0xFF4FD1C5, "¿Por qué pasa?", null, null, null);
         paragraph(s, "Últimamente estos servicios están presentando errores, por eso se caen en ese horario. No es una falla de tu TV Box ni de tu internet: no necesitas reiniciarla ni reinstalar las apps.");
         return s;
+    }
+
+    // ------------------------------------------------------------ support and internet test
+
+    /** "Soporte": a QR that opens Telegram with the support message already written. */
+    private View supportCard(String letter) {
+        LinearLayout s = section(letter, 0xFF2AABEE, "Soporte", null, null, null);
+        paragraph(s, "¿Tienes dudas o algún problema con tu TV Box? Escríbeme por Telegram a @jorge_jbz.");
+        qrRow(s, BoxCare.MSG_SUPPORT, "Escanéalo con la cámara de tu celular: se abrirá Telegram con un mensaje listo para enviar.");
+        return s;
+    }
+
+    /** QR (white square, readable from a phone) with a short explanation beside it. */
+    private void qrRow(LinearLayout s, String message, String text) {
+        QrCode qr = QrCode.encode(BoxCare.telegramLink(message));
+        if (qr == null) return;
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.ImageView img = new android.widget.ImageView(this);
+        img.setImageBitmap(qr.toBitmap(4, 3));
+        img.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        // Sharp modules when scaled up on a TV.
+        img.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        if (img.getDrawable() instanceof android.graphics.drawable.BitmapDrawable) {
+            ((android.graphics.drawable.BitmapDrawable) img.getDrawable()).setFilterBitmap(false);
+        }
+        int side = Ui.u(130);
+        row.addView(img, new LinearLayout.LayoutParams(side, side));
+        TextView t = body(text, 0.86f);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0, -2, 1f);
+        tlp.leftMargin = Ui.u(16);
+        row.addView(t, tlp);
+        s.addView(row, margins(0, 14, 0, 0));
+    }
+
+    /** "¿Es tu internet?": the result of "Probar mi internet" appears here. */
+    private View speedCard() {
+        LinearLayout s = section("⚡", 0xFF7BD88F, "¿Es tu internet?", null, null, null);
+        paragraph(s, "Selecciona «Probar mi internet» abajo para medir tu velocidad (tarda unos 10 segundos).");
+        speedResult = body("", 1f);
+        speedResult.setVisibility(View.GONE);
+        s.addView(speedResult, margins(0, 12, 0, 0));
+        return s;
+    }
+
+    private void runSpeedTest() {
+        if (speedThread != null && speedThread.isAlive()) return;
+        speedResult.setVisibility(View.VISIBLE);
+        speedResult.setTextColor(Ui.TEXT);
+        speedResult.setText("Midiendo tu internet…");
+        speedButton.setEnabled(false);
+        speedButton.setAlpha(0.5f);
+        scroll.post(() -> scroll.smoothScrollTo(0, Math.max(0, speedCard.getTop() - Ui.u(10))));
+        speedThread = new Thread(() -> {
+            double mbps = BoxCare.measureSpeed(pct -> runOnUiThread(() -> {
+                if (!isDestroyed()) speedResult.setText("Midiendo tu internet…  " + pct + "%");
+            }));
+            runOnUiThread(() -> {
+                if (isDestroyed()) return;
+                speedButton.setEnabled(true);
+                speedButton.setAlpha(1f);
+                showSpeed(mbps);
+            });
+        }, "aura-velocidad");
+        speedThread.start();
+    }
+
+    private void showSpeed(double mbps) {
+        String text;
+        int color;
+        if (mbps < 0) {
+            text = "No hay conexión a internet. Revisa el cable Ethernet o el Wi-Fi, y reinicia tu módem.";
+            color = 0xFFFF8A65;
+        } else {
+            String v = String.format(Locale.getDefault(), "%.1f Mbps", mbps);
+            if (mbps >= 15) {
+                text = "Tu internet: " + v + ". Excelente, alcanza para Full HD. Si una app no carga, es el servicio de esa app, no tu internet.";
+                color = 0xFF7BD88F;
+            } else if (mbps >= 5) {
+                text = "Tu internet: " + v + ". Suficiente para HD. Si una app no carga, es el servicio de esa app, no tu internet.";
+                color = 0xFF7BD88F;
+            } else if (mbps >= 2) {
+                text = "Tu internet: " + v + ". Algo lento: los videos pueden detenerse. Usa cable Ethernet o acerca la TV Box al módem.";
+                color = 0xFFFFB74D;
+            } else {
+                text = "Tu internet: " + v + ". Muy lento para ver videos. Reinicia tu módem, usa cable Ethernet o consulta con tu compañía de internet.";
+                color = 0xFFFF8A65;
+            }
+        }
+        speedResult.setText(text);
+        speedResult.setTextColor(color);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (speedThread != null) speedThread.interrupt();
+        super.onDestroy();
     }
 
     // ------------------------------------------------------------ care of the box ("Recomendaciones")
@@ -615,6 +721,28 @@ public final class RecommendationsActivity extends Activity {
         });
         go.setOnClickListener(v -> onContinue());
         gbg.setColor(0x26FFFFFF);
+        if (schedule) {
+            speedButton = Ui.text(this, 16, Ui.medium, 1f);
+            speedButton.setText("Probar mi internet");
+            speedButton.setGravity(Gravity.CENTER);
+            speedButton.setPadding(Ui.u(24), Ui.u(11), Ui.u(24), Ui.u(11));
+            final GradientDrawable sbg = new GradientDrawable();
+            sbg.setCornerRadius(Ui.uf(22));
+            sbg.setColor(0x267BD88F);
+            speedButton.setBackground(sbg);
+            focusable(speedButton);
+            speedButton.setOnFocusChangeListener((v, has) -> {
+                sbg.setColor(has ? 0xFFF5F5F7 : 0x267BD88F);
+                speedButton.setTextColor(has ? 0xFF07080B : Ui.TEXT);
+                v.animate().scaleX(has ? 1.06f : 1f).scaleY(has ? 1.06f : 1f).setDuration(150).start();
+            });
+            speedButton.setOnClickListener(v -> runSpeedTest());
+            speedButton.setId(View.generateViewId());
+            speedButton.setNextFocusLeftId(speedButton.getId());
+            LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
+            sp.leftMargin = Ui.u(14);
+            bar.addView(speedButton, sp);
+        }
         LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(-2, -2);
         gp.leftMargin = Ui.u(14);
         bar.addView(go, gp);
@@ -623,7 +751,7 @@ public final class RecommendationsActivity extends Activity {
         t.setId(View.generateViewId());
         go.setId(View.generateViewId());
         t.setNextFocusLeftId(t.getId());
-        if (manual) go.setNextFocusLeftId(go.getId());
+        if (manual) go.setNextFocusLeftId(speedButton != null ? speedButton.getId() : go.getId());
         go.setNextFocusRightId(go.getId());
         go.post(go::requestFocus);
         return bar;

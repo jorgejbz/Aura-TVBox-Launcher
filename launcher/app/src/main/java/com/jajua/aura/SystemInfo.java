@@ -153,6 +153,16 @@ final class SystemInfo {
 
     /** The mode the HDMI output really runs at, not the size the firmware advertises. */
     static String display(Activity a) {
+        // What the TV receives (the HDMI mode), with the menus' size when they are drawn smaller and scaled up.
+        String hdmi = BoxCare.hdmiMode();
+        java.util.regex.Matcher x = hdmi == null ? null
+                : java.util.regex.Pattern.compile("(\\d+)x(\\d+)[pi]-(\\d+)").matcher(hdmi);
+        if (x != null && x.matches()) {
+            android.graphics.Point ui = new android.graphics.Point();
+            a.getWindowManager().getDefaultDisplay().getRealSize(ui);
+            String out = x.group(1) + " × " + x.group(2) + " · " + x.group(3) + " Hz";
+            return ui.y > 0 && ui.y < Integer.parseInt(x.group(2)) ? out + " (menús " + ui.y + "p)" : out;
+        }
         Display d = a.getWindowManager().getDefaultDisplay();
         if (Build.VERSION.SDK_INT >= 23) {
             Display.Mode m = d.getMode();

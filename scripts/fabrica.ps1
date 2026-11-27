@@ -92,6 +92,14 @@ adb -s $Serial push (Join-Path $PSScriptRoot 'aura-defaults.properties') /system
 if ($Bind -and (Test-Path $Bind)) {
     Sh 'mkdir -p /system/etc/aura/bind' | Out-Null
     Get-ChildItem $Bind -File | ForEach-Object { adb -s $Serial push $_.FullName /system/etc/aura/bind/ | Select-Object -Last 1 }
+    # Android's accent colour becomes Aura's lavender (static overlay, see overlay-tema/). Android ignores it if broken.
+    $tema = Join-Path (Split-Path $PSScriptRoot) 'overlay-tema\AuraTema.apk'
+    if (Test-Path $tema) {
+        adb -s $Serial push $tema /data/local/tmp/AuraTema.apk | Out-Null
+        Sh ('mkdir -p /system/vendor/overlay && chmod 755 /system/vendor/overlay && chcon u:object_r:system_file:s0 /system/vendor/overlay && ' +
+            'cp /data/local/tmp/AuraTema.apk /system/vendor/overlay/AuraTema.apk && chmod 644 /system/vendor/overlay/AuraTema.apk && ' +
+            'chcon u:object_r:system_file:s0 /system/vendor/overlay/AuraTema.apk; rm -f /data/local/tmp/AuraTema.apk; sync') | Out-Null
+    }
 }
 # The firmware adds the HDMI device without a channel list; YouTube reads that as 8 channels and stutters on 5.1.
 if ($ParcheAudio) {

@@ -26,6 +26,9 @@ final class Ui {
     static Typeface light;
 
     private static float unit = 1f;
+    /** "Texto más grande" in Sistema: Aura's texts (not the layout) grow by this much. */
+    static final float BIG_TEXT = 1.15f;
+    private static float textScale = 1f;
 
     private Ui() {}
 
@@ -34,9 +37,23 @@ final class Ui {
         int w = Math.max(dm.widthPixels, dm.heightPixels);
         int h = Math.min(dm.widthPixels, dm.heightPixels);
         unit = Math.min(w / 960f, h / 540f);
+        textScale = bigText(context) ? BIG_TEXT : 1f;
         regular = Typeface.create("sans-serif", Typeface.NORMAL);
         medium = Typeface.create("sans-serif-medium", Typeface.NORMAL);
         light = Typeface.create("sans-serif-light", Typeface.NORMAL);
+    }
+
+    static boolean bigText(Context c) {
+        return c.getSharedPreferences("display", Context.MODE_PRIVATE).getBoolean("big_text", false);
+    }
+
+    static void setBigText(Context c, boolean on) {
+        c.getSharedPreferences("display", Context.MODE_PRIVATE).edit().putBoolean("big_text", on).apply();
+    }
+
+    /** Text size in pixels for views not made with {@link #text} (switches, buttons). */
+    static float textPx(float size) {
+        return uf(size) * textScale;
     }
 
     static int u(float v) {
@@ -49,7 +66,7 @@ final class Ui {
 
     static TextView text(Context c, float size, Typeface face, float alpha) {
         TextView t = new TextView(c);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_PX, uf(size));
+        t.setTextSize(TypedValue.COMPLEX_UNIT_PX, uf(size) * textScale);
         t.setTypeface(face);
         t.setTextColor(TEXT);
         t.setAlpha(alpha);
