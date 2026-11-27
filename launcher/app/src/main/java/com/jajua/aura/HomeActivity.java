@@ -75,6 +75,9 @@ public final class HomeActivity extends Activity implements Card.Listener {
     private volatile boolean upgradeAfterUpdate;
     private static final int DOWN_FROM = 19, DOWN_TO = 8;
     private static long lastNightShown = -120_000;
+    private static long lastNewsShown = -120_000;
+    /** The owner's floating news is due (see NoticeBoard.floatingNow). */
+    private boolean newsPending;
     private static long lastUpdateShown = -120_000;
     /** The update notice was asked for by a return from an app (not the start-up check). */
     private boolean noticeOnReturn;
@@ -262,8 +265,17 @@ public final class HomeActivity extends Activity implements Card.Listener {
         // /system becomes this one if an update left it older, so a factory reset keeps the newest Aura. No restart.
         main.postDelayed(() -> new Thread(() -> SystemUpgrade.syncAuraCopy(app), "aura-copia-sistema").start(), 180_000);
         // The owner's "¿No funciona?" news (GitHub), so the button can show its dot without opening it.
+        // If the news is marked "flotante" for this time of day, it also shows as a floating notice.
         main.postDelayed(() -> new Thread(() -> {
-            if (NoticeBoard.refreshIfStale(app, 0)) main.post(this::refreshBadge);
+            NoticeBoard.refreshIfStale(app, 0);
+            final boolean floating = NoticeBoard.floatingNow(app);
+            main.post(() -> {
+                refreshBadge();
+                if (floating) {
+                    newsPending = true;
+                    showNoticeIfHome();
+                }
+            });
         }, "aura-avisos").start(), 15_000);
         main.postDelayed(() -> new Thread(this::offerSystemUpgrade, "aura-mejoras").start(), 30_000);
         // Once per boot: a newer Aura on GitHub gets the big notice (and the small header button).
@@ -593,6 +605,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
         if (dialog != null && dialog.isShowing()) return;
         if (!noticePending) {
             if (upgradeMissing != null) showUpgradeNotice();
+            else if (newsPending) showNewsNotice();
             else if (heatPending) showHeatWarning();
             else if (nightPending) showNightNotice();
             else if (xuperChanged != null) showXuperChanged();
@@ -648,6 +661,68 @@ public final class HomeActivity extends Activity implements Card.Listener {
                 .setOnDismissListener(d -> main.post(this::showNoticeIfHome))
                 .show();
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus();
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(600), -2);
+    }
+
+    /**
+     * The owner's news as a floating notice (avisos/no-funciona.json with "flotante": true and its time
+     * window), at start and on each return from an app, never twice within a minute.
+     */
+    private void showNewsNotice() {
+        newsPending = false;
+        org.json.JSONObject n = NoticeBoard.news(this);
+        if (n == null || !NoticeBoard.floatingNow(this)) {
+            main.post(this::showNoticeIfHome);
+            return;
+        }
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (now - lastNewsShown < 60_000) {
+            main.post(this::showNoticeIfHome);
+            return;
+        }
+        lastNewsShown = now;
+        NoticeBoard.markSeen(this); // Seen here: the dot on "¿No funciona?" goes away.
+        refreshBadge();
+
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        v.setPadding(Ui.u(24), Ui.u(8), Ui.u(24), 0);
+        TextView msg = Ui.text(this, 14.5f, Ui.regular, 0.9f);
+        msg.setSingleLine(false);
+        msg.setEllipsize(null);
+        msg.setLineSpacing(Ui.uf(2), 1f);
+        msg.setText(n.optString("texto").trim());
+        v.addView(msg);
+        // "No volver a mostrar", ticked from the start: closing it stops the floating notice, while the
+        // message stays in «¿No funciona?» (during its daily hours). Unticking keeps it floating.
+        final android.widget.CheckBox hide = new android.widget.CheckBox(this);
+        hide.setText(R.string.news_hide);
+        hide.setChecked(true);
+        hide.setTextColor(Ui.TEXT);
+        hide.setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.uf(14));
+        hide.setButtonTintList(android.content.res.ColorStateList.valueOf(0xFFF5F5F7));
+        final android.graphics.drawable.GradientDrawable hb = new android.graphics.drawable.GradientDrawable();
+        hb.setCornerRadius(Ui.uf(10));
+        hb.setColor(0x00000000);
+        hide.setBackground(hb);
+        hide.setPadding(Ui.u(4), Ui.u(6), Ui.u(12), Ui.u(6));
+        hide.setOnFocusChangeListener((x, has) -> hb.setColor(has ? 0x33FFFFFF : 0x00000000));
+        v.addView(hide, margins(0, 12, 0, 0));
+
+        dialog = new AlertDialog.Builder(this)
+                .setTitle(NoticeBoard.text(n, "titulo", getString(R.string.sched_news)))
+                .setView(v)
+                .setPositiveButton(R.string.news_ok, null)
+                .setNeutralButton(R.string.news_more, (d, w) -> startActivity(
+                        new Intent(this, RecommendationsActivity.class)
+                                .putExtra(RecommendationsActivity.EXTRA_SCHEDULE, true)))
+                .setOnDismissListener(d -> {
+                    if (hide.isChecked()) NoticeBoard.hideFloating(this);
+                    main.post(this::showNoticeIfHome);
+                })
+                .show();
+        android.widget.Button ok = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (ok != null) ok.requestFocus();
         if (dialog.getWindow() != null) dialog.getWindow().setLayout(Ui.u(600), -2);
     }
 
@@ -760,6 +835,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
             noticeOnReturn = true;
         }
         if (BoxCare.inHours(DOWN_FROM, DOWN_TO) && !BoxCare.nightHidden(this)) nightPending = true;
+        // The owner's floating news, again on every return while its time window lasts.
+        if (NoticeBoard.floatingNow(this)) newsPending = true;
         showNoticeIfHome();
         // A new Aura published while the box stayed on: ask GitHub again (at most every 30 minutes),
         // and if there is one, the big notice ("Actualizar ahora" / "Más tarde") shows right away.

@@ -107,6 +107,9 @@
     <string name="sched_button_desc">Si Magis TV o Xuper Crystal Clear no cargan, entra aquí</string>
     <string name="sched_title">¿No funciona una app?</string>
     <string name="sched_news">Novedad</string>
+    <string name="news_ok">Entendido</string>
+    <string name="news_more">Ver más</string>
+    <string name="news_hide">No volver a mostrar (seguirá en «¿No funciona?»)</string>
     <string name="sched_subtitle">Horarios de servicio y qué usar mientras tanto  ·  ▲ ▼ para desplazarte</string>
     <string name="update_pill">↑ Aura %1$s</string>
     <string name="update_pill_desc_title">Actualización de Aura</string>

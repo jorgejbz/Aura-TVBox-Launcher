@@ -93,10 +93,64 @@ final class NoticeBoard {
         }
     }
 
-    /** The highlighted news, or null. */
+    /**
+     * The highlighted news, or null. With "horario": "12:00-19:00" it only exists between those hours
+     * each day (in «¿No funciona?» and as a floating notice): gone at night, back the next day.
+     */
     static JSONObject news(Context c) {
         JSONObject n = get(c).optJSONObject("novedad");
-        return n != null && !n.optString("texto", "").trim().isEmpty() ? n : null;
+        if (n == null || n.optString("texto", "").trim().isEmpty()) return null;
+        return inDailyHours(n.optString("horario", "")) ? n : null;
+    }
+
+    /** "HH:mm-HH:mm" in the box's time zone; empty or unreadable means all day. */
+    private static boolean inDailyHours(String range) {
+        if (range == null || !range.matches("\\s*\\d{1,2}:\\d{2}\\s*-\\s*\\d{1,2}:\\d{2}\\s*")) return true;
+        String[] p = range.trim().split("\\s*-\\s*");
+        int from = minutes(p[0]), to = minutes(p[1]);
+        java.util.Calendar now = java.util.Calendar.getInstance();
+        int m = now.get(java.util.Calendar.HOUR_OF_DAY) * 60 + now.get(java.util.Calendar.MINUTE);
+        return from <= to ? m >= from && m < to : m >= from || m < to;
+    }
+
+    private static int minutes(String hhmm) {
+        String[] p = hhmm.split(":");
+        return Integer.parseInt(p[0]) * 60 + Integer.parseInt(p[1]);
+    }
+
+    /** The person left «No volver a mostrar» ticked: this news no longer floats (it stays in «¿No funciona?»). */
+    static void hideFloating(Context c) {
+        JSONObject n = get(c).optJSONObject("novedad");
+        if (n != null) prefs(c).edit().putString("floating_off", n.optString("id", n.optString("texto"))).apply();
+    }
+
+    private static boolean floatingHidden(Context c, JSONObject n) {
+        return n.optString("id", n.optString("texto")).equals(prefs(c).getString("floating_off", ""));
+    }
+
+    /**
+     * The news is also a floating notice right now: "flotante": true, and the box's clock between "desde"
+     * and "hasta" (both optional, "yyyy-MM-dd HH:mm" in the box's time zone). A box whose clock is not set
+     * yet (no RTC: it starts in 1969 until the network gives the time) shows nothing.
+     */
+    static boolean floatingNow(Context c) {
+        JSONObject n = news(c);
+        if (n == null || !n.optBoolean("flotante", false) || floatingHidden(c, n)) return false;
+        long now = System.currentTimeMillis();
+        if (now < 1704067200000L) return false; // Before 2024: clock not set.
+        long from = time(n.optString("desde", "")), to = time(n.optString("hasta", ""));
+        return (from <= 0 || now >= from) && (to <= 0 || now < to);
+    }
+
+    private static long time(String s) {
+        if (s == null || s.trim().isEmpty()) return 0;
+        try {
+            java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.ROOT);
+            f.setLenient(false);
+            return f.parse(s.trim()).getTime();
+        } catch (java.text.ParseException e) {
+            return 0;
+        }
     }
 
     /** A news item the person has not opened yet (for the dot on the button). */

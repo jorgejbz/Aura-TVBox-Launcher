@@ -30,22 +30,26 @@ Edita `no-funciona.json` en GitHub (ícono del lápiz), cambia los textos y guar
   punto vuelva a salir.
 - Para quitar la novedad, deja `"texto": ""`.
 
-## Que salga como aviso flotante (Aura 1.4.8 o más nueva)
+## Que salga como aviso flotante y en qué horario (Aura 1.4.8 o más nueva)
 
 Agrega a la novedad:
 
 ```json
     "flotante": true,
+    "horario": "12:00-19:00",
     "desde": "2026-11-28 08:00",
-    "hasta": "2026-11-28 19:00"
+    "hasta": "2026-11-30 19:00"
 ```
 
-- Sale en una ventana al abrir Aura y cada vez que la persona regresa de una app, con los
-  botones «Entendido» y «Ver más» (abre «¿No funciona?»).
-- `desde` y `hasta` son opcionales (hora de la TV Box, formato `AAAA-MM-DD HH:MM`). Sin `desde`
-  sale desde ya; sin `hasta`, hasta que la quites. Conviene terminar a las 19:00, cuando
-  empieza el aviso nocturno.
-- Fuera de ese horario la novedad sigue en «¿No funciona?», pero ya no flota.
+- `flotante`: sale en una ventana al encender (después de la «Guía de uso») y al regresar de una
+  app, con los botones «Entendido» y «Ver más» (abre «¿No funciona?»). La casilla «No volver a
+  mostrar» viene marcada: si la dejan así, ya no les flota, pero el mensaje sigue en «¿No funciona?».
+- `horario`: horas del día en que existe el mensaje (en «¿No funciona?» y flotante). Fuera de ese
+  horario desaparece y vuelve al día siguiente. Conviene terminar a las 19:00, cuando empieza el
+  aviso nocturno.
+- `desde` / `hasta` (opcionales, `AAAA-MM-DD HH:MM`): fechas entre las que puede flotar.
+- Las versiones de Aura anteriores a la 1.4.8 ignoran estos campos: muestran la tarjeta en
+  «¿No funciona?» a cualquier hora, sin ventana flotante.
 
 ## Cambiar los textos de horarios (opcional)
 
