@@ -26,7 +26,8 @@ PREINSTALL_OLD = ['93f66a7af2d2d11fe4bb03d17cae9863', '1933ee6ef0a4157985fd48a29
 TVSETTINGS_OLD = ['b2b8a7c5674dab474a61e72b5358cb5a']          # patch_settings.py copy, no theme
 LATINIME_OLD = ['20233f48e01ec8b60b98b2ff87ea8686',            # stock LatinIME (no bind yet)
                 '2aa127bfeb6e1beefb532c25ae1450f3']            # first recoloured test
-RESOURCE_OLD = ['580853bf6c70466888520aae26712a1e']            # stock resource partition (720p logos)
+RESOURCE_OLD = ['580853bf6c70466888520aae26712a1e',            # stock resource partition (720p logos)
+                'c1bc387dcfdf240be0bbe158242ad323']            # same, from a batch whose DTB timing0 is 720p (box 5)
 
 
 def digest(path, algo):
@@ -45,7 +46,8 @@ def main(out):
         dst = os.path.join(out, name)
         md5 = digest(src, 'md5')
         if gz:
-            with open(src, 'rb') as fi, gzip.open(dst, 'wb', 9) as fo:
+            # mtime=0 and no file name: the same input always gives the same bytes (and sha256).
+            with open(src, 'rb') as fi, open(dst, 'wb') as raw, gzip.GzipFile('', 'wb', 9, raw, mtime=0) as fo:
                 shutil.copyfileobj(fi, fo)
         else:
             shutil.copyfile(src, dst)
