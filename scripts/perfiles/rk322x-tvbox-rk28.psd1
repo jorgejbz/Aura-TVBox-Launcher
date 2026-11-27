@@ -74,7 +74,13 @@
         'ro.product.brand'         = 'Rockchip'
         'ro.product.board'         = 'rk322x'
         'ro.product.chipset'       = 'RK3228A'
+        # Va con el menú en 1080p (Resolucion1080): mismo tamaño de todo que a 720p con 160, pero más nítido.
+        'ro.sf.lcd_density'        = '240'
     }
+
+    # Menú a 1920x1080 en lugar de 1280x720 (patch_resource_1080.py sobre la partición resource; se comprueba
+    # y, si no coincide, se regresa la original). Probado en los dos lotes vistos: DTB con timing0 a 1080p o a 720p.
+    Resolucion1080 = $true
 
     Javacore    = $true    # patch_javacore.py
     Ajustes     = $true    # patch_settings.py + fabrica.ps1 -Bind

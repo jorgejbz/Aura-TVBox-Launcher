@@ -419,6 +419,31 @@ function Almacenamiento-Real {
     return ($df -gt 0 -and [math]::Abs($fw - $df) / $df -lt 0.03)
 }
 
+# Menú en 1080p: la partición resource con logos de 1920x1080 (y el modo por defecto del DTB a 1080p si venía en 720p).
+# Copia de la original en la caja (/data/local/tmp/aura-resource-antes.img, como hace Aura) y en el respaldo completo.
+function Menu-1080($tmp) {
+    $dev = Sh 'for f in /sys/block/mmcblk0/mmcblk0p*/uevent; do grep -q ^PARTNAME=resource$ $f && echo /dev/block/$(basename $(dirname $f)); done'
+    if ($dev -notmatch '^/dev/block/mmcblk0p\d+$') { Fallar "No encontré la partición resource ($dev)." }
+    $orig = Join-Path $tmp 'resource-orig.img'; $nueva = Join-Path $tmp 'resource-1080.img'
+    Sh "dd if=$dev of=/data/local/tmp/aura-resource-antes.img bs=1048576 2>/dev/null; sync" | Out-Null
+    adb -s $script:S pull /data/local/tmp/aura-resource-antes.img $orig 2>&1 | Out-Null
+    $antes = ((Sh "md5sum $dev") -split '\s+')[0]
+    if ((Get-FileHash -Algorithm MD5 $orig).Hash.ToLower() -ne $antes) { Fallar 'La copia de la partición resource no coincide con la caja.' }
+    $r = Ejecutar-Py @((Join-Path $PSScriptRoot 'patch_resource_1080.py'), $orig, $nueva)
+    if ($r -eq 3) { Info 'El menú ya está en 1080p.'; return }
+    if ($r -ne 0) { Fallar 'patch_resource_1080.py no reconoce la partición resource de esta caja.' }
+    $quiero = (Get-FileHash -Algorithm MD5 $nueva).Hash.ToLower()
+    Cambio 'Menú en 1080p (partición resource)' {
+        adb -s $script:S push $nueva /data/local/tmp/aura-resource-1080.img 2>&1 | Out-Null
+        $quedo = ((Sh "dd if=/data/local/tmp/aura-resource-1080.img of=$dev bs=1048576 2>/dev/null; sync; echo 3 > /proc/sys/vm/drop_caches; md5sum $dev") -split '\s+')[0]
+        Sh 'rm -f /data/local/tmp/aura-resource-1080.img' | Out-Null
+        if ($quedo -ne $quiero) {
+            $regreso = ((Sh "dd if=/data/local/tmp/aura-resource-antes.img of=$dev bs=1048576 2>/dev/null; sync; echo 3 > /proc/sys/vm/drop_caches; md5sum $dev") -split '\s+')[0]
+            Fallar "La partición resource no quedó como debía ($quedo); se regresó la original ($(if ($regreso -eq $antes) { 'verificada' } else { "NO coincide: $regreso" }))."
+        }
+    }
+}
+
 function Etapa-falsificaciones {
     $Perf = $script:Perfil
     $tmp = Join-Path $env:TEMP 'aura-preparar'; New-Item -ItemType Directory -Force $tmp | Out-Null
@@ -432,6 +457,8 @@ function Etapa-falsificaciones {
             Cambio 'Instalar libjavacore.so parcheado' { Instalar-Lib (Join-Path $tmp 'libjavacore.new') '/system/lib/libjavacore.so' }
         }
     }
+    # Antes que build.prop: la densidad 240 sólo va bien con el menú ya en 1080p (si esto falla, se detiene aquí).
+    if ($Perf.Resolucion1080) { Menu-1080 $tmp }
     foreach ($k in $Perf.BuildProp.Keys) {
         $v = $Perf.BuildProp[$k]
         if ((Sh "grep '^$k=' /system/build.prop") -ne "$k=$v") { Cambio "build.prop: $k=$v" { Remount; Sh "sed -i 's#^$k=.*#$k=$v#' /system/build.prop; sync" | Out-Null } }
@@ -522,6 +549,7 @@ function Falta-En-Caja($e) {
         }
         'falsificaciones' {
             if ($Perf.Javacore -and -not (Almacenamiento-Real)) { return 'el almacenamiento sigue falsificado' }
+            if ($Perf.Resolucion1080 -and (Sh 'cat /sys/class/graphics/fb0/virtual_size') -notmatch '^1920,') { return 'el menú no está en 1080p' }
             foreach ($k in $Perf.BuildProp.Keys) { if ((Sh "grep '^$k=' /system/build.prop") -ne "$k=$($Perf.BuildProp[$k])") { return "build.prop: falta $k" } }
             if ($Perf.Ajustes -and [int]("0" + (Sh 'ls /system/etc/aura/bind 2>/dev/null | grep -c Settings')) -lt 2) { return 'faltan los Ajustes parcheados' }
         }
