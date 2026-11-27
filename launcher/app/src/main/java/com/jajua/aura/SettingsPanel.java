@@ -118,6 +118,8 @@ public final class SettingsPanel extends Activity {
             if (ssid != null && ssid.length() > 1 && !ssid.contains("unknown ssid")) {
                 return getString(R.string.sp_net_wifi, ssid.replace("\"", ""));
             }
+            // Android 9+ hides the network name from apps without location access.
+            return getString(R.string.sp_net_wifi_plain);
         }
         return ni.getTypeName();
     }

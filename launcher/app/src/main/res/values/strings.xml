@@ -147,6 +147,7 @@
     <string name="sp_net_none">Sin conexión: elige tu Wi-Fi aquí</string>
     <string name="sp_net_cable">Conectado por cable</string>
     <string name="sp_net_wifi">Wi-Fi: %1$s</string>
+    <string name="sp_net_wifi_plain">Conectado por Wi-Fi</string>
     <string name="sp_apps">Aplicaciones</string>
     <string name="sp_apps_sub">Abrir, detener, borrar caché o desinstalar</string>
     <string name="sp_storage">Almacenamiento</string>
