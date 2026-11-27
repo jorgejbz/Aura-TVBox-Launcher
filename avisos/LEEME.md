@@ -30,6 +30,23 @@ Edita `no-funciona.json` en GitHub (ícono del lápiz), cambia los textos y guar
   punto vuelva a salir.
 - Para quitar la novedad, deja `"texto": ""`.
 
+## Que salga como aviso flotante (Aura 1.4.8 o más nueva)
+
+Agrega a la novedad:
+
+```json
+    "flotante": true,
+    "desde": "2026-11-28 08:00",
+    "hasta": "2026-11-28 19:00"
+```
+
+- Sale en una ventana al abrir Aura y cada vez que la persona regresa de una app, con los
+  botones «Entendido» y «Ver más» (abre «¿No funciona?»).
+- `desde` y `hasta` son opcionales (hora de la TV Box, formato `AAAA-MM-DD HH:MM`). Sin `desde`
+  sale desde ya; sin `hasta`, hasta que la quites. Conviene terminar a las 19:00, cuando
+  empieza el aviso nocturno.
+- Fuera de ese horario la novedad sigue en «¿No funciona?», pero ya no flota.
+
 ## Cambiar los textos de horarios (opcional)
 
 Puedes agregar cualquiera de estas claves junto a `novedad`:
