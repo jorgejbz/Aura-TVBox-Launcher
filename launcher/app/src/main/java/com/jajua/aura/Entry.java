@@ -16,6 +16,9 @@ final class Entry {
     final boolean removable;
 
     Drawable banner;
+    /** Show the banner whole (centred, with a margin) instead of filling the card: a logo on transparency
+     *  or a shape far from 16:9 would otherwise be cut (XuperAmigOnlyTV's 640 x 276 logo lost its sides). */
+    boolean bannerFit;
     Drawable icon;
     int tint = Ui.ACCENT;
 

@@ -83,6 +83,10 @@ final class AppLoader {
             Entry entry = new Entry(ai.packageName, ai.packageName, ri.loadLabel(pm), null, launch, !system);
             entry.banner = shrink(context, loadBanner(pm, ai), MAX_BANNER_PX);
             entry.icon = shrink(context, loadIcon(pm, ri), MAX_ICON_PX);
+            if (entry.banner == null && PLAY_STORE.equals(ai.packageName)) {
+                entry.banner = playStoreBanner(context, entry.icon);
+            }
+            entry.bannerFit = needsFit(entry.banner);
             entry.tint = dominantColor(entry.banner != null ? entry.banner : entry.icon);
             apps.add(entry);
         }
@@ -91,6 +95,61 @@ final class AppLoader {
         collator.setStrength(Collator.PRIMARY);
         Collections.sort(apps, (a, b) -> collator.compare(a.label.toString(), b.label.toString()));
         return apps;
+    }
+
+    private static final String PLAY_STORE = "com.android.vending";
+
+    /**
+     * True when filling the 16:9 card would cut the banner: a logo drawn on transparency, or a shape far
+     * from 16:9. Those are shown whole instead (see Card).
+     */
+    static boolean needsFit(Drawable d) {
+        if (d == null) return false;
+        int w = d.getIntrinsicWidth(), h = d.getIntrinsicHeight();
+        if (w <= 0 || h <= 0) return false;
+        float ratio = (float) w / h;
+        if (Math.abs(ratio - 16f / 9f) > 0.2f) return true;
+        if (d instanceof android.graphics.drawable.BitmapDrawable) {
+            Bitmap b = ((android.graphics.drawable.BitmapDrawable) d).getBitmap();
+            if (b != null && b.hasAlpha()) {
+                // Transparent corners: a free-standing logo, not full-bleed artwork.
+                int[][] corners = {{0, 0}, {b.getWidth() - 1, 0}, {0, b.getHeight() - 1}, {b.getWidth() - 1, b.getHeight() - 1}};
+                for (int[] p : corners) if (Color.alpha(b.getPixel(p[0], p[1])) < 128) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The phone Play Store has no TV banner, so its card was a small icon on a coloured square. This
+     * draws one in the style of YouTube's: an off-white card with the app's own icon and "Google Play".
+     */
+    private static Drawable playStoreBanner(Context c, Drawable icon) {
+        if (icon == null) return null;
+        try {
+            int w = 640, h = 360;
+            Bitmap b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            Canvas cv = new Canvas(b);
+            cv.drawColor(0xFFF3F3F3);
+            android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            p.setColor(0xFF5F6368);
+            p.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+            p.setTextSize(62);
+            String text = "Google Play";
+            int iconSize = 176, gap = 14;
+            float textW = p.measureText(text);
+            int left = Math.round((w - (iconSize + gap + textW)) / 2f);
+            int top = (h - iconSize) / 2;
+            Drawable ic = icon.getConstantState() != null ? icon.getConstantState().newDrawable().mutate() : icon;
+            ic.setBounds(left, top, left + iconSize, top + iconSize);
+            ic.draw(cv);
+            android.graphics.Paint.FontMetrics fm = p.getFontMetrics();
+            float baseline = h / 2f - (fm.ascent + fm.descent) / 2f;
+            cv.drawText(text, left + iconSize + gap, baseline, p);
+            return new android.graphics.drawable.BitmapDrawable(c.getResources(), b);
+        } catch (OutOfMemoryError e) {
+            return null;
+        }
     }
 
     private static Drawable loadBanner(PackageManager pm, ActivityInfo ai) {

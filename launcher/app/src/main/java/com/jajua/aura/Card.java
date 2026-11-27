@@ -66,8 +66,15 @@ final class Card extends LinearLayout {
             bg = new GradientDrawable();
             bg.setColor(Ui.blend(entry.tint, 0xFF000000, 0.6f));
             ImageView iv = new ImageView(c);
-            iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
             iv.setImageDrawable(entry.banner);
+            if (entry.bannerFit) {
+                // A logo that filling would cut: whole, centred, with room around it on the card's colour.
+                iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                int pad = Math.round(faceH * 0.1f);
+                iv.setPadding(pad, pad, pad, pad);
+            } else {
+                iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            }
             face.addView(iv, new FrameLayout.LayoutParams(-1, -1));
         } else {
             bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[] {
