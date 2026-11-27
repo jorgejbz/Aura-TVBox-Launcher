@@ -54,6 +54,45 @@ public final class HomeActivity extends Activity implements Card.Listener {
     /** Separate from {@link #worker}: downloading APKs must not hold up the app list. */
     private final ExecutorService catalog = Executors.newSingleThreadExecutor();
     private final Runnable reloadTask = this::reload;
+    /** "¿Eres nuevo?" bubble under "Guía de uso": 5 s shown, 5 s hidden, while the home screen is visible. */
+    private static final long HINT_SHOWN_MS = 5000, HINT_HIDDEN_MS = 5000;
+    private static final float DATE_ALPHA = 0.72f;
+    private View hint;
+    private View guidePill;
+    private android.graphics.drawable.GradientDrawable guideBg;
+    private View helpPill;
+    private android.graphics.drawable.GradientDrawable helpBg;
+    /**
+     * At night the hint alternates with "¿Xuper no carga?": from 7 p.m. (just before Crystal Clear and Magis TV go
+     * down at 10) until 8 a.m., when they come back.
+     */
+    private static final int NIGHT_FROM = 19, NIGHT_TO = 8;
+    private boolean hintIsHelp;
+    private int hintCount;
+    private final Runnable hintShow = new Runnable() {
+        @Override
+        public void run() {
+            if (hint == null) return;
+            int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+            boolean night = hour >= NIGHT_FROM || hour < NIGHT_TO;
+            hintIsHelp = night && (hintCount++ % 2 == 1);
+            ((TextView) hint).setText(hintIsHelp ? R.string.hint_evening : R.string.hint_new_user);
+            date.animate().alpha(0f).setDuration(350).start();
+            hint.animate().alpha(1f).setStartDelay(200).setDuration(450).start();
+            hintGlow(true);
+            main.postDelayed(hintHide, HINT_SHOWN_MS);
+        }
+    };
+    private final Runnable hintHide = new Runnable() {
+        @Override
+        public void run() {
+            if (hint == null) return;
+            hint.animate().alpha(0f).setStartDelay(0).setDuration(350).start();
+            date.animate().alpha(DATE_ALPHA).setStartDelay(200).setDuration(450).start();
+            hintGlow(false);
+            main.postDelayed(hintShow, HINT_HIDDEN_MS);
+        }
+    };
     private final Runnable statusTick = new Runnable() {
         @Override
         public void run() {
@@ -122,6 +161,9 @@ public final class HomeActivity extends Activity implements Card.Listener {
         reload();
         // Once per boot, until the user ticks "No volver a mostrar" (RecommendationsActivity decides).
         if (RecommendationsActivity.dueAtStart(this)) main.postDelayed(() -> openRecommendations(false, false), 700);
+        // Once per boot, a minute in (after the start-up rush): frees space left by abandoned root/adb installs.
+        final Context app = getApplicationContext();
+        main.postDelayed(() -> new Thread(() -> StaleSessions.run(app), "aura-limpieza").start(), 60_000);
     }
 
     /**
@@ -148,6 +190,7 @@ public final class HomeActivity extends Activity implements Card.Listener {
         register(clockReceiver, f);
         updateDate();
         main.post(statusTick);
+        main.postDelayed(hintShow, 1500);
         checkNewApps();
     }
 
@@ -196,6 +239,15 @@ public final class HomeActivity extends Activity implements Card.Listener {
     protected void onStop() {
         unregisterReceiver(clockReceiver);
         main.removeCallbacks(statusTick);
+        main.removeCallbacks(hintShow);
+        main.removeCallbacks(hintHide);
+        if (hint != null) {
+            hint.animate().cancel();
+            hint.setAlpha(0f);
+            date.animate().cancel();
+            date.setAlpha(DATE_ALPHA);
+            hintGlow(false);
+        }
         super.onStop();
     }
 
@@ -269,8 +321,13 @@ public final class HomeActivity extends Activity implements Card.Listener {
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setClipChildren(false); // The focused pill grows a little.
         header.setPadding(Ui.u(Ui.SAFE_X), Ui.u(Ui.SAFE_Y), Ui.u(Ui.SAFE_X), Ui.u(4));
-        date = Ui.text(this, 15, Ui.regular, 0.72f);
-        header.addView(date, new LinearLayout.LayoutParams(0, -2, 1f));
+        date = Ui.text(this, 15, Ui.regular, DATE_ALPHA);
+        // The date shares its place with "¿Eres nuevo? Consulta la Guía de uso →", which points at the pill.
+        FrameLayout dateBox = new FrameLayout(this);
+        dateBox.addView(date, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL | Gravity.START));
+        hint = newUserHint();
+        dateBox.addView(hint, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_VERTICAL | Gravity.END));
+        header.addView(dateBox, new LinearLayout.LayoutParams(0, -2, 1f));
         header.addView(headerButtons(), margins(0, 0, 12, 0));
         status = Ui.text(this, 13, Ui.regular, 0.55f);
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-2, -2);
@@ -332,20 +389,55 @@ public final class HomeActivity extends Activity implements Card.Listener {
         LinearLayout pills = new LinearLayout(this);
         pills.setGravity(Gravity.CENTER_VERTICAL);
         pills.setClipChildren(false);
-        TextView guide = pill(R.string.recs_button, R.string.recs_button_desc,
+        final TextView guide = pill(R.string.recs_button, R.string.recs_button_desc,
                 () -> openRecommendations(true, false));
         TextView care = pill(R.string.care_button, R.string.care_button_desc,
                 () -> openRecommendations(true, true));
-        pills.addView(guide);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-        lp.leftMargin = Ui.u(10);
-        pills.addView(care, lp);
-        // Left/right move between the two and stop at the ends; nothing above them.
-        guide.setNextFocusLeftId(guide.getId());
-        guide.setNextFocusRightId(care.getId());
-        care.setNextFocusLeftId(guide.getId());
-        care.setNextFocusRightId(care.getId());
+        TextView hours = pill(R.string.sched_button, R.string.sched_button_desc, () -> {
+            if (isFinishing() || isDestroyed()) return;
+            startActivity(new Intent(this, RecommendationsActivity.class)
+                    .putExtra(RecommendationsActivity.EXTRA_SCHEDULE, true));
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+        });
+        guidePill = guide;
+        guideBg = (android.graphics.drawable.GradientDrawable) guide.getBackground();
+        helpPill = hours;
+        helpBg = (android.graphics.drawable.GradientDrawable) hours.getBackground();
+        TextView[] all = {guide, care, hours};
+        for (int i = 0; i < all.length; i++) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            if (i > 0) lp.leftMargin = Ui.u(10);
+            pills.addView(all[i], lp);
+            // Left/right move along the pills and stop at the ends; nothing above them.
+            all[i].setNextFocusLeftId(all[Math.max(0, i - 1)].getId());
+            all[i].setNextFocusRightId(all[Math.min(all.length - 1, i + 1)].getId());
+        }
         return pills;
+    }
+
+    /** "¿Eres nuevo? Consulta la Guía de uso →": never takes focus, only fades in and out. */
+    private View newUserHint() {
+        TextView t = Ui.text(this, 14, Ui.medium, 1f);
+        t.setText(R.string.hint_new_user);
+        t.setTextColor(0xE6F5F5F7);
+        t.setAlpha(0f);
+        t.setFocusable(false);
+        t.setPadding(0, 0, Ui.u(10), 0);
+        return t;
+    }
+
+    /**
+     * While a hint shows, the border of the pill it points at brightens a little ("Guía de uso", or "¿No funciona?"
+     * for the evening one). Off clears both. A focused pill keeps its own look.
+     */
+    private void hintGlow(boolean on) {
+        glow(guidePill, guideBg, on && !hintIsHelp);
+        glow(helpPill, helpBg, on && hintIsHelp);
+    }
+
+    private static void glow(View pill, android.graphics.drawable.GradientDrawable bg, boolean on) {
+        if (bg == null || pill == null || pill.hasFocus()) return;
+        bg.setStroke(Math.max(1, Ui.u(on ? 1.5f : 1f)), on ? 0xB3FFFFFF : 0x33FFFFFF);
     }
 
     private TextView pill(int label, int desc, Runnable open) {

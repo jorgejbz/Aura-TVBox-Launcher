@@ -83,3 +83,37 @@ de Android, vuelta a versión anterior), `AppLoader.java`, `Defaults.java` (`xup
 - Prueba real 2026-11-26: Xuper 4.99.20 (misma firma) → 4.34.5 con Aura, conservando datos y sesión (mismas
   preferencias, mismo número de archivos). Xuper 4.34.5 muestra al abrir «Actualización de versión» a 4.99.20: la
   Guía de uso indica elegir «Cancelar».
+
+## 6. Aura 1.4.1 (local)
+
+- «Reinstalar Xuper’s»: si la versión instalada ya es la recomendada, la opción dice «✓ Ya tienes la recomendada para
+  su uso (no es necesario reinstalar)» y la confirmación lo explica, con «Cancelar» enfocado y «Reinstalar de todos
+  modos» disponible.
+- Tercer botón en la cabecera, **«¿No funciona?»** (pantalla «¿No funciona una app?», `EXTRA_SCHEDULE`): de 8:00 a.m. a 10:00 p.m. usar Xuper Crystal Clear
+  y Magis TV / Xuper; de 10:00 p.m. a 8:00 a.m. se caen (errores recientes del servicio) y se recomienda Stremio o
+  XuperAmigOnlyTV; XuperAmigOnlyTV a veces se cae a las 3:00–4:00 a.m. y vuelve a las 8:00 a.m.
+- **Instalaciones abandonadas:** una instalación hecha como root o por adb que se corta (apagón en el primer arranque
+  tras formatear, o adb esperando al verificador roto de Play Store) deja el APK completo en `/data/app/vmdl*.tmp`
+  (en la caja de pruebas, 2 de Stremio = 176 MB). Android las borra a los 3 días, pero sin reloj nunca pasa.
+  `preinstall.sh` ahora las cancela en cada arranque (`pm install-abandon` de las sesiones con installerUid 0 o 2000
+  en `/data/system/install_sessions.xml`; las de apps como Play Store o Aura no se tocan; el sed de toybox necesita
+  `-E` para la alternancia). Aura no puede hacerlo: Android sólo deja cancelar una sesión a quien la creó o a root.
+- `aura-a-sistema.ps1` (lo que usa `Actualizar-Aura-TVBox.bat`) también pone el `preinstall.sh` del repositorio,
+  sólo si la caja ya tiene el de Aura TVBox, con `cat >` para conservar la etiqueta SELinux. Probado en la caja de
+  pruebas: actualizó el script, reinició bien y Aura conservó el permiso de instalar sin ventana.
+- **Aura también limpia (1.4.1, `StaleSessions.java`)**, para las cajas que sólo reciben la actualización de Aura y
+  no los scripts: un minuto después de arrancar, revisa `PackageInstaller.getAllSessions()`. Las sesiones sin app
+  instaladora (root/adb) que ya existían en un arranque anterior se cancelan con `su 0 pm install-abandon`,
+  ejecutado por el adbd de la propia caja (cliente ADB mínimo hacia 127.0.0.1; `su` sólo lo permite a root y shell).
+  Si el ADB estaba cerrado lo abre ~4 s y lo vuelve a cerrar. Sólo actúa cuando hay algo que limpiar.
+  Ojo: el adbd de estos Rockchip atiende **una conexión a la vez**; con una PC conectada por adb, la limpieza falla
+  (sin daño) y se reintenta en el siguiente arranque.
+  Probado: con ADB abierto (limpió, 2 s) y con ADB cerrado (el puerto se abrió 4 s, a los ~110 s del arranque, y se
+  volvió a cerrar).
+- **Aviso «¿Eres nuevo? Consulta aquí →»** (1.4.1): en la cabecera, la fecha se desvanece y en su lugar aparece ese
+  texto, con la flecha junto a «Guía de uso», cuyo borde se ilumina un poco. 5 s visible y 5 s la fecha, siempre que la
+  pantalla de inicio esté a la vista (se detiene en `onStop`). No toma el foco ni tapa nada. Una burbuja bajo el
+  botón se descartó porque se encimaba con el título grande de apps de nombre largo.
+- De noche, **de 7:00 p.m. a 8:00 a.m.** (`NIGHT_FROM`/`NIGHT_TO` en HomeActivity), el aviso alterna con **«¿Xuper no carga? Mira
+  aquí →»**, que ilumina el botón «¿No funciona?». Fuera de ese horario sólo sale «¿Eres nuevo? Consulta aquí →».
+  Usa la hora de la caja: sin internet al encender, las primeras horas pueden ser incorrectas hasta que se sincroniza.

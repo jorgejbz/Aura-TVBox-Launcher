@@ -43,6 +43,8 @@ public final class RecommendationsActivity extends Activity {
     static final String EXTRA_MANUAL = "manual";
     /** The "Recomendaciones" page: how to look after the box (always opened by hand). */
     static final String EXTRA_CARE = "care";
+    /** The "Horarios" page: when each app works (always opened by hand). */
+    static final String EXTRA_SCHEDULE = "schedule";
 
     private static final int AMBER = 0xFFFFB74D;
     private static final int GREEN = 0xFF7BD88F;
@@ -53,6 +55,7 @@ public final class RecommendationsActivity extends Activity {
     private boolean dontShow;
     private boolean manual;
     private boolean care;
+    private boolean schedule;
 
     // ------------------------------------------------------------ when to show
 
@@ -94,7 +97,8 @@ public final class RecommendationsActivity extends Activity {
         super.onCreate(state);
         Ui.init(this);
         care = getIntent().getBooleanExtra(EXTRA_CARE, false);
-        manual = care || getIntent().getBooleanExtra(EXTRA_MANUAL, false);
+        schedule = getIntent().getBooleanExtra(EXTRA_SCHEDULE, false);
+        manual = care || schedule || getIntent().getBooleanExtra(EXTRA_MANUAL, false);
         setContentView(build());
     }
 
@@ -158,10 +162,10 @@ public final class RecommendationsActivity extends Activity {
         kicker.setLetterSpacing(0.12f);
         column.addView(kicker);
         TextView title = Ui.text(this, 32, Ui.medium, 1f);
-        title.setText(care ? R.string.care_title : R.string.recs_title);
+        title.setText(schedule ? R.string.sched_title : care ? R.string.care_title : R.string.recs_title);
         column.addView(title, margins(0, 6, 0, 0));
         TextView sub = Ui.text(this, 14, Ui.regular, 0.6f);
-        sub.setText(care ? R.string.care_subtitle : R.string.recs_subtitle);
+        sub.setText(schedule ? R.string.sched_subtitle : care ? R.string.care_subtitle : R.string.recs_subtitle);
         column.addView(sub, margins(0, 6, 0, 0));
 
         scroll = new ScrollView(this);
@@ -183,7 +187,11 @@ public final class RecommendationsActivity extends Activity {
         rp.leftMargin = Ui.u(18);
         cols.addView(right, rp);
 
-        if (care) {
+        if (schedule) {
+            left.addView(scheduleXuper());
+            right.addView(scheduleAmigOnly());
+            right.addView(scheduleWhy(), margins(0, 16, 0, 0));
+        } else if (care) {
             left.addView(careInternet());
             left.addView(careHeat(), margins(0, 16, 0, 0));
             left.addView(careRemote(), margins(0, 16, 0, 0));
@@ -268,6 +276,37 @@ public final class RecommendationsActivity extends Activity {
                 "Descarga los archivos APK que necesites y cópialos a una memoria USB.",
                 "Conecta la memoria a la TV Box.",
                 "Abre «Archivos», busca el APK y selecciónalo para instalarlo.");
+        return s;
+    }
+
+    // ------------------------------------------------------------ when each app works ("Horarios")
+
+    /** For whoever chose Crystal Clear or Magis TV: when they work and what to use after 10 p.m. */
+    private View scheduleXuper() {
+        LinearLayout s = section("1", 0xFF5B8CFF, "Si decidiste usar Xuper Crystal Clear o Magis TV / Xuper", null,
+                null, "Xuper Crystal Clear " + CRYSTAL_VERSION + "  ·  Magis TV / Xuper " + XUPER_VERSION);
+        steps(s,
+                "Funcionan con normalidad de 8:00 a.m. a 10:00 p.m.",
+                "A las 10:00 p.m. se caen sus servicios y se restablecen a las 8:00 a.m.",
+                "Después de las 10:00 p.m. te recomendamos usar Stremio o XuperAmigOnlyTV para seguir disfrutando de tus programas y series favoritas.");
+        warning(s, "Importante: no actualices ni desinstales",
+                "Si Xuper Crystal Clear o Magis TV / Xuper dejan de cargar, o te muestran un aviso para actualizarse, haz caso omiso: no las actualices ni las desinstales.\n\n"
+                        + "Se trata de una falla temporal del servicio, frecuente en estos días, y normalmente se resuelve sola por la mañana. Mientras tanto, puedes usar Stremio o XuperAmigOnlyTV.");
+        return s;
+    }
+
+    /** For whoever always uses XuperAmigOnlyTV: it works at night, with an occasional early-morning outage. */
+    private View scheduleAmigOnly() {
+        LinearLayout s = section("2", 0xFF2AABEE, "Si decidiste usar XuperAmigOnlyTV", null, null, null);
+        paragraph(s, "Puedes usarla a cualquier hora, también en la noche.");
+        warning(s, "En la madrugada",
+                "Hay días en que se puede caer o dejar de cargar a las 3:00 o 4:00 a.m. Se restablece a las 8:00 a.m., al igual que Xuper Crystal Clear y Magis TV / Xuper.");
+        return s;
+    }
+
+    private View scheduleWhy() {
+        LinearLayout s = section("?", 0xFF4FD1C5, "¿Por qué pasa?", null, null, null);
+        paragraph(s, "Últimamente estos servicios están presentando errores, por eso se caen en ese horario. No es una falla de tu TV Box ni de tu internet: no necesitas reiniciarla ni reinstalar las apps.");
         return s;
     }
 
@@ -380,6 +419,8 @@ public final class RecommendationsActivity extends Activity {
         head.addView(dot, new LinearLayout.LayoutParams(Ui.u(28), Ui.u(28)));
         TextView t = Ui.text(this, 20, Ui.medium, 1f);
         t.setText(name);
+        t.setSingleLine(false); // Long titles ("Si decidiste usar …") wrap instead of being cut.
+        t.setEllipsize(null);
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0, -2, 1f);
         tlp.leftMargin = Ui.u(12);
         head.addView(t, tlp);

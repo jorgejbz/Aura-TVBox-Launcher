@@ -73,9 +73,11 @@ public final class ReinstallActivity extends Activity {
                 CharSequence[] items = new CharSequence[have.length];
                 for (int i = 0; i < items.length; i++) {
                     XuperApps.Target t = XuperApps.TARGETS[i];
-                    items[i] = getString(R.string.xr_item, getString(t.label), have[i] == null
-                            ? getString(R.string.xr_not_installed) : getString(R.string.xr_have, have[i]),
-                            t.recommended);
+                    items[i] = t.recommended.equals(have[i])
+                            ? getString(R.string.xr_item_same, getString(t.label), have[i])
+                            : getString(R.string.xr_item, getString(t.label), have[i] == null
+                                    ? getString(R.string.xr_not_installed) : getString(R.string.xr_have, have[i]),
+                                    t.recommended);
                 }
                 show(new AlertDialog.Builder(this)
                         .setTitle(R.string.xr_title)
@@ -88,6 +90,16 @@ public final class ReinstallActivity extends Activity {
     /** Step 2: say what will happen. */
     private void confirm(XuperApps.Target t, String have) {
         target = t;
+        if (t.recommended.equals(have)) {
+            // Already the recommended one: say it is not needed, but let the user do it anyway (a broken app).
+            show(new AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.xr_confirm_title, getString(t.label)))
+                    .setMessage(getString(R.string.xr_confirm_same, getString(t.label), have))
+                    .setPositiveButton(R.string.xr_reinstall_anyway, (d, w) -> startDownload())
+                    .setNegativeButton(R.string.xr_cancel, (d, w) -> finish()));
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).requestFocus();
+            return;
+        }
         String text = getString(have == null ? R.string.xr_confirm_new : R.string.xr_confirm, getString(t.label), have,
                 t.recommended);
         show(new AlertDialog.Builder(this)

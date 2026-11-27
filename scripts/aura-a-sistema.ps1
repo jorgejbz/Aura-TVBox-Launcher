@@ -165,7 +165,20 @@ $copia = Sh ('cp /data/local/tmp/Aura.apk /system/priv-app/Aura/Aura.apk.new && 
 $h1 = ((Sh 'md5sum /system/priv-app/Aura/Aura.apk') -split '\s+')[0]
 $h2 = (Get-FileHash -Algorithm MD5 $aura).Hash.ToLower()
 if ($h1 -ne $h2) { throw "La copia de /system no coincide con el APK: revisa antes de reiniciar. $copia" }
-'Copiada a /system/priv-app/Aura. Reiniciando...'
+'Copiada a /system/priv-app/Aura.'
+# preinstall.sh al día (p. ej. la limpieza de instalaciones abandonadas). Sólo si la caja ya tiene el nuestro: el del
+# firmware no se toca. "cat >" conserva el archivo y su etiqueta SELinux, como preparar.ps1.
+$pre = Join-Path $PSScriptRoot 'preinstall.sh'
+if ((Test-Path $pre) -and (Sh 'grep -c ''replaces the firmware'' /system/bin/preinstall.sh 2>/dev/null') -match '^[1-9]') {
+    adb -s $Serial push $pre /data/local/tmp/preinstall.sh 2>&1 | Out-Null
+    Sh 'cat /data/local/tmp/preinstall.sh > /system/bin/preinstall.sh; rm -f /data/local/tmp/preinstall.sh; sync' | Out-Null
+    $p1 = ((Sh 'md5sum /system/bin/preinstall.sh') -split '\s+')[0]
+    if ($p1 -eq (Get-FileHash -Algorithm MD5 $pre).Hash.ToLower()) { 'preinstall.sh actualizado.' }
+    else { Write-Host 'AVISO: preinstall.sh no quedó igual al del repositorio; la caja sigue con el anterior o uno parcial.' -ForegroundColor Yellow }
+} else {
+    'preinstall.sh: esta caja no tiene el de Aura TVBox; no se toca.'
+}
+'Reiniciando...'
 
 # 4. Tras reiniciar, Android debe dar a Aura el permiso para instalar sin la ventana de confirmación.
 adb -s $Serial reboot 2>&1 | Out-Null

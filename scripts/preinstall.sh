@@ -30,6 +30,17 @@ if [ -d /data/cifsmanager ]; then
     chmod 0700 /data/cifsmanager
     mylog "cifsmanager closed: $(ls -ld /data/cifsmanager)"
 fi
+# Install sessions left half-done by root or adb (a first-boot install cut short by a power cut, or an adb install stuck
+# waiting for Play Store's broken verifier) keep a full copy of the APK in /data/app/vmdl*.tmp: 70-180 MB each.
+# Android prunes them after 3 days, but these boxes boot without a clock, so it never happens. Nothing installs as
+# root or shell this early in a boot, so they are all dead: drop them. Sessions of apps (Play Store, Aura) are kept.
+SESSIONS=/data/system/install_sessions.xml
+if [ -f $SESSIONS ]; then
+    # toybox sed: alternation only with -E.
+    for sid in $(sed -nE 's/.*sessionId="([0-9]+)"[^>]*installerUid="(0|2000)".*/\1/p' $SESSIONS); do
+        mylog "stale install session $sid: $(pm install-abandon $sid 2>&1)"
+    done
+fi
 # Apps already running keep the old code; a plain kill does not leave them in the "stopped" state.
 for p in com.android.settings com.android.tv.settings; do
     pid=$(pidof "$p") && kill $pid
