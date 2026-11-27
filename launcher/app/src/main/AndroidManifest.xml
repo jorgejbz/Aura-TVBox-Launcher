@@ -186,6 +186,7 @@
         <!-- "Ajustes": the most used settings first, in Aura's side panel (SettingsPanel). -->
         <activity
             android:name=".SettingsPanel"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
             android:excludeFromRecents="true"
             android:exported="false"
             android:label="@string/sp_title"
@@ -194,6 +195,7 @@
         <!-- "Mejoras del sistema": brings an already prepared box up to date (SystemUpgrade). -->
         <activity
             android:name=".SystemUpgradeActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
             android:excludeFromRecents="true"
             android:exported="false"
             android:label="@string/up_title"
@@ -202,6 +204,7 @@
         <!-- The permission switches the TV settings lack, in a side panel like theirs (PermissionsPanel). -->
         <activity
             android:name=".PermissionsPanel"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
             android:excludeFromRecents="true"
             android:exported="true"
             android:theme="@style/Theme.Aura.Transparent">
