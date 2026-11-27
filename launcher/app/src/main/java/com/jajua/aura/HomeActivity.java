@@ -749,6 +749,24 @@ public final class HomeActivity extends Activity implements Card.Listener {
         }
         if (BoxCare.inHours(DOWN_FROM, DOWN_TO) && !BoxCare.nightHidden(this)) nightPending = true;
         showNoticeIfHome();
+        // A new Aura published while the box stayed on: ask GitHub again (at most every 30 minutes),
+        // and if there is one, the big notice ("Actualizar ahora" / "Más tarde") shows right away.
+        if (noticePending || !online()) return;
+        final Context app = getApplicationContext();
+        catalog.execute(() -> {
+            try {
+                AppsCatalog.checkAuraIfStale(app, 30 * 60 * 1000L);
+            } catch (Exception e) {
+                return; // GitHub unavailable: the next return tries again.
+            }
+            if (AppsCatalog.auraNewerVersion(app) == null) return;
+            main.post(() -> {
+                refreshBadge();
+                noticePending = true;
+                noticeOnReturn = true;
+                showNoticeIfHome();
+            });
+        });
     }
 
     /** Aura's own screens (guide, Sistema, updates…) are not "leaving to an app". */

@@ -458,7 +458,18 @@ final class AppsCatalog {
     }
 
     /** Asks GitHub for the newest published Aura and remembers it for the badge; worker thread. */
+    /**
+     * {@link #checkAura} when the last check is older than maxAgeMs: coming back from an app asks GitHub
+     * again (a box can stay on for days), without asking on every single return. Worker thread.
+     */
+    static void checkAuraIfStale(Context c, long maxAgeMs) throws IOException, JSONException {
+        long now = System.currentTimeMillis(), last = prefs(c).getLong("aura_checked_at", 0);
+        if (now - last >= 0 && now - last < maxAgeMs) return;
+        checkAura(c);
+    }
+
     static void checkAura(Context c) throws IOException, JSONException {
+        prefs(c).edit().putLong("aura_checked_at", System.currentTimeMillis()).apply();
         JSONObject release = new JSONObject(new String(read(AURA_RELEASE, null), "UTF-8"));
         String tag = release.getString("tag_name").replaceFirst("^[vV]", "");
         prefs(c).edit().putString(AURA_LATEST, tag)
