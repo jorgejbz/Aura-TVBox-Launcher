@@ -224,6 +224,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
         Ui.init(this);
         KeyMap.importDefaultsOnce(this);
         KeyMap.enableServiceOnce(this);
+        // Aura's settings shortcuts only where they help; elsewhere Android would ask "Abrir con…" (1.4.5 on HiSilicon).
+        SettingsShortcuts.sync(this);
         AutoUpdateJob.schedule(this);
         setContentView(buildLayout());
 
@@ -1263,8 +1265,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
         }
         if (!KeyMap.serviceEnabled(this)) {
             labels.add(getString(R.string.keys_enable));
-            actions.add(() -> launch(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                    .setClass(this, SettingsRedirect.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), getString(R.string.keys_enable), null));
+            actions.add(() -> launch(SettingsShortcuts.route(this, new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), getString(R.string.keys_enable), null));
         }
         AlertDialog.Builder b = new AlertDialog.Builder(this)
                 .setTitle(R.string.keys_title)
@@ -1608,8 +1610,8 @@ public final class HomeActivity extends Activity implements Card.Listener {
             });
         }
         labels.add(getString(R.string.opt_info));
-        actions.add(() -> launch(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.fromParts("package", e.packageName, null)).setClass(this, SettingsRedirect.class)
+        actions.add(() -> launch(SettingsShortcuts.route(this, new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", e.packageName, null)))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 e.label, null));
         if (e.removable) {

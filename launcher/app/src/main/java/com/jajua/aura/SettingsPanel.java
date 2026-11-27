@@ -65,9 +65,9 @@ public final class SettingsPanel extends Activity {
         p.row(this, icon(R.drawable.ic_s_language), getString(R.string.sp_language),
                 capitalize(Locale.getDefault().getDisplayName()), null, v -> openTv(".system.LanguageActivity"));
         p.row(this, icon(R.drawable.ic_s_keyboard), getString(R.string.sp_keyboard), null, null,
-                v -> openTv(".system.KeyboardActivity"));
+                v -> openTv(".system.KeyboardActivity", ".inputmethod.KeyboardActivity"));
         p.row(this, icon(R.drawable.ic_s_accessibility), getString(R.string.sp_accessibility),
-                getString(R.string.sp_accessibility_sub), null, v -> openTv(".system.AccessibilityActivity"));
+                getString(R.string.sp_accessibility_sub), null, v -> openTv(".system.AccessibilityActivity", ".accessibility.AccessibilityActivity"));
 
         p.section(this, R.string.sp_sec_system);
         p.row(this, icon(R.drawable.ic_s_restart), getString(R.string.sp_restart), getString(R.string.sp_restart_sub), null,
@@ -170,8 +170,16 @@ public final class SettingsPanel extends Activity {
 
     // ------------------------------------------------------------ helpers
 
-    private void openTv(String cls) {
-        open(new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(TV, TV + cls)));
+    /** The first of these TV settings screens that exists on this box (names differ between Android 7 and 9). */
+    private void openTv(String... classes) {
+        for (String cls : classes) {
+            Intent i = new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(TV, TV + cls));
+            if (i.resolveActivity(getPackageManager()) != null) {
+                open(i);
+                return;
+            }
+        }
+        open(new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(TV, TV + ".MainSettings")));
     }
 
     private void open(Intent i) {
