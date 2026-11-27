@@ -258,6 +258,9 @@ public final class HomeActivity extends Activity implements Card.Listener {
             EssentialApps.ensure(app);
             main.post(this::refreshBadge);
         }, "aura-esenciales").start(), 120_000);
+        // Three minutes in (after the cleanup and the essential apps, which also use the box's adbd): the Aura in
+        // /system becomes this one if an update left it older, so a factory reset keeps the newest Aura. No restart.
+        main.postDelayed(() -> new Thread(() -> SystemUpgrade.syncAuraCopy(app), "aura-copia-sistema").start(), 180_000);
         // The owner's "¿No funciona?" news (GitHub), so the button can show its dot without opening it.
         main.postDelayed(() -> new Thread(() -> {
             if (NoticeBoard.refreshIfStale(app, 0)) main.post(this::refreshBadge);

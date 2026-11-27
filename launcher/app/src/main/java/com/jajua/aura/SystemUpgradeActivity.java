@@ -36,6 +36,11 @@ public final class SystemUpgradeActivity extends Activity {
     /** The screen showing the progress now (any copy of it), or null. */
     private static volatile SystemUpgradeActivity shown;
 
+    /** The system improvements are being installed right now (they copy Aura to /system themselves). */
+    static boolean running() {
+        return RUNNING.get();
+    }
+
     private final Handler main = new Handler(Looper.getMainLooper());
     private SidePanel panel;
     private TextView note;

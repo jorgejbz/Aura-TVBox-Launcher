@@ -197,9 +197,7 @@ final class SystemUpgrade {
             if (opened) closeAdbNow(c);
             return c.getString(R.string.up_err_root);
         }
-        String rm = svc(port, "remount:");
-        if (rm == null || !rm.contains("succeeded")) {
-            Log.w(TAG, "remount: " + rm);
+        if (systemWritable(port) == null) {
             if (opened) closeAdbNow(c);
             return c.getString(R.string.up_err_root);
         }
@@ -287,6 +285,72 @@ final class SystemUpgrade {
         String back = first(sh(port, "dd if=" + backup + " of=" + dev + " bs=1048576 2>/dev/null; sync; "
                 + "echo 3 > /proc/sys/vm/drop_caches; md5sum " + dev));
         return now.equals(back) ? "write did not verify, restored" : "WRITE AND RESTORE FAILED (" + back + ")";
+    }
+
+    // ------------------------------------------------------------ /system in writing, and Aura's copy there
+
+    /**
+     * Mounts /system read-write and returns its mount point ("/system", or "/" on system-as-root boxes),
+     * or null. Rockchip only accepts adbd's "remount:"; the HiSilicon (Android 9, /dev/root) refuses it and
+     * needs its block device set rw and a manual remount, like aura-a-sistema.ps1.
+     */
+    static String systemWritable(int port) {
+        String mnt = trim(sh(port, "grep -q ' /system ' /proc/mounts && echo /system || echo /"));
+        if (mnt.isEmpty()) return null;
+        String rwCheck = "grep ' " + mnt + " ' /proc/mounts | grep -q '[ ,]rw[ ,]' && echo rw";
+        if ("rw".equals(trim(sh(port, rwCheck)))) return mnt;
+        svc(port, "remount:");
+        if ("rw".equals(trim(sh(port, rwCheck)))) return mnt;
+        sh(port, "D=$(grep ' " + mnt + " ' /proc/mounts | cut -d' ' -f1); "
+                + "if [ \"$D\" = /dev/root ] || [ ! -e \"$D\" ]; then D=$(readlink -f /dev/block/by-name/system 2>/dev/null"
+                + " || ls /dev/block/platform/*/by-name/system 2>/dev/null); fi; "
+                + "blockdev --setrw $D; mount -o remount,rw " + mnt);
+        if ("rw".equals(trim(sh(port, rwCheck)))) return mnt;
+        Log.w(TAG, "could not mount " + mnt + " read-write");
+        return null;
+    }
+
+    /**
+     * Keeps the Aura in /system the same as the one running (an update lives in /data): that copy is what a
+     * factory reset brings back, so after an update every box, Rockchip or HiSilicon, keeps the newest Aura
+     * even after "Formatear". No restart: Android picks the copy up on the next normal start. Only on boxes
+     * that already have Aura in /system. Worker thread; true when the copy matches.
+     */
+    static boolean syncAuraCopy(Context c) {
+        File sys = new File("/system/priv-app/Aura/Aura.apk");
+        String own = c.getApplicationInfo().sourceDir;
+        if (!sys.exists() || own == null || own.startsWith("/system/")) return true;
+        String want = md5(new File(own));
+        if (want.equals(md5(sys))) return true;
+        if (SystemUpgradeActivity.running()) return false; // The improvements copy it themselves.
+        boolean[] openedBox = {false};
+        int port;
+        try {
+            port = StaleSessions.adbPort(c, openedBox);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        boolean ok = false;
+        try {
+            if (port <= 0) return false;
+            boolean wasRoot = "0".equals(trim(sh(port, "id -u")));
+            if (!becomeRoot(port)) return false;
+            String mnt = systemWritable(port);
+            if (mnt == null) return false;
+            String out = sh(port, "cp '" + own + "' /system/priv-app/Aura/Aura.apk.new && chown root:root /system/priv-app/Aura/Aura.apk.new"
+                    + " && chmod 644 /system/priv-app/Aura/Aura.apk.new && chcon u:object_r:system_file:s0 /system/priv-app/Aura/Aura.apk.new"
+                    + " && mv /system/priv-app/Aura/Aura.apk.new /system/priv-app/Aura/Aura.apk; rm -f /system/priv-app/Aura/Aura.apk.new;"
+                    + " sync; md5sum /system/priv-app/Aura/Aura.apk");
+            ok = out != null && out.startsWith(want);
+            Log.i(TAG, "Aura in /system " + (ok ? "updated" : "NOT updated: " + out));
+            // Read-only again (as after a restart); a busy mount just stays rw until the next start.
+            sh(port, "mount -o remount,ro " + mnt + " 2>/dev/null; true");
+            if (!wasRoot) svc(port, "unroot:"); // Leave adbd as it was.
+            return ok;
+        } finally {
+            if (openedBox[0]) SystemInfo.setAdbNetwork(c, false);
+        }
     }
 
     // ------------------------------------------------------------ adbd
