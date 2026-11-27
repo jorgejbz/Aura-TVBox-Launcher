@@ -24,8 +24,8 @@ android {
         minSdk = 21
         targetSdk = 36
         // versionCode only ever grows (Android refuses downgrades); 1.0 is the first public release.
-        versionCode = 16
-        versionName = "1.4.2"
+        versionCode = 17
+        versionName = "1.4.3"
     }
 
     signingConfigs {

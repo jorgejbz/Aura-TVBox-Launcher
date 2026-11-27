@@ -127,7 +127,7 @@
     <string name="free_space_done">Listo: se liberaron %1$s. Tus apps, sesiones y ajustes no se tocaron.</string>
     <string name="free_space_none">No había espacio que liberar: las apps ya estaban limpias.</string>
     <string name="night_title">Aviso de horario nocturno</string>
-    <string name="night_text">Desde las 10:00 p.m. Xuper Crystal Clear y Magis TV / Xuper pueden dejar de funcionar por fallas de su servicio; si pasa, normalmente se restablecen solas a las 8:00 a.m.\n\nSi prefieres no esperar, puedes usar XuperAmigOnlyTV (o Stremio) desde ahora para seguir disfrutando de tus programas y series favoritas sin interrupciones.\n\nImportante: si dejan de cargar, no las actualices ni las desinstales.</string>
+    <string name="night_text">Desde las 10:00 p.m. Xuper Crystal Clear y Magis TV / Xuper pueden dejar de funcionar por fallas de su servicio; si pasa, normalmente vuelven solas por la mañana, aproximadamente a las 8:00 a.m. (la hora exacta depende de su servicio).\n\nSi prefieres no esperar, puedes usar XuperAmigOnlyTV (o Stremio) desde ahora para seguir disfrutando de tus programas y series favoritas sin interrupciones.\n\nImportante: si dejan de cargar, no las actualices ni las desinstales.</string>
     <string name="night_more">Ver recomendaciones</string>
     <string name="night_ask">¿Tienes dudas?</string>
     <string name="ask_text">Escanea el código con la cámara de tu celular: se abrirá Telegram con un mensaje listo para enviarme (@jorge_jbz). Te ayudo con cualquier duda o problema de tu TV Box.</string>

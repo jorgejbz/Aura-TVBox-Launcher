@@ -295,9 +295,10 @@ public final class RecommendationsActivity extends Activity {
         LinearLayout s = section("1", 0xFF5B8CFF, "Si decidiste usar Xuper Crystal Clear o Magis TV / Xuper", null,
                 null, "Xuper Crystal Clear " + CRYSTAL_VERSION + "  ·  Magis TV / Xuper " + XUPER_VERSION);
         steps(s,
-                "Funcionan con normalidad de 8:00 a.m. a 10:00 p.m.",
-                "A las 10:00 p.m. se caen sus servicios y se restablecen a las 8:00 a.m.",
-                "Después de las 10:00 p.m. te recomendamos usar Stremio o XuperAmigOnlyTV para seguir disfrutando de tus programas y series favoritas.");
+                "De día funcionan con normalidad, más o menos de 8:00 a.m. a 10:00 p.m.",
+                "Por la noche, cerca de las 10:00 p.m., su servicio suele caerse.",
+                "Vuelven a funcionar por la mañana, aproximadamente a las 8:00 a.m. Es una hora aproximada: depende del servicio de estas apps, así que algunos días puede ser un poco antes o un poco después.",
+                "Mientras tanto, usa Stremio o XuperAmigOnlyTV para seguir disfrutando de tus programas y series favoritas.");
         warning(s, "Importante: no actualices ni desinstales",
                 "Si Xuper Crystal Clear o Magis TV / Xuper dejan de cargar, o te muestran un aviso para actualizarse, haz caso omiso: no las actualices ni las desinstales.\n\n"
                         + "Se trata de una falla temporal del servicio, frecuente en estos días, y normalmente se resuelve sola por la mañana. Mientras tanto, puedes usar Stremio o XuperAmigOnlyTV.");
@@ -309,13 +310,14 @@ public final class RecommendationsActivity extends Activity {
         LinearLayout s = section("2", 0xFF2AABEE, "Si decidiste usar XuperAmigOnlyTV", null, null, null);
         paragraph(s, "Puedes usarla a cualquier hora, también en la noche.");
         warning(s, "En la madrugada",
-                "Hay días en que se puede caer o dejar de cargar a las 3:00 o 4:00 a.m. Se restablece a las 8:00 a.m., al igual que Xuper Crystal Clear y Magis TV / Xuper.");
+                "Algunos días puede dejar de cargar en la madrugada, entre las 3:00 y las 4:00 a.m. Igual que Xuper Crystal Clear y Magis TV / Xuper, vuelve por la mañana, aproximadamente a las 8:00 a.m.");
         return s;
     }
 
     private View scheduleWhy() {
         LinearLayout s = section("?", 0xFF4FD1C5, "¿Por qué pasa?", null, null, null);
-        paragraph(s, "Últimamente estos servicios están presentando errores, por eso se caen en ese horario. No es una falla de tu TV Box ni de tu internet: no necesitas reiniciarla ni reinstalar las apps.");
+        paragraph(s, "Últimamente estos servicios están presentando fallas, por eso se caen en ese horario. No es una falla de tu TV Box ni de tu internet: no necesitas reiniciarla ni reinstalar las apps.");
+        paragraph(s, "Seguiremos al pendiente: si hay novedades (por ejemplo, si cambia el horario o se soluciona la falla), te avisaremos aquí mismo en Aura con una actualización.");
         return s;
     }
 

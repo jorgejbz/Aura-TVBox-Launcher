@@ -229,6 +229,16 @@ final class SystemInfo {
         return "running".equals(prop("init.svc.adbd")) ? port : 0;
     }
 
+    /**
+     * What the box is set to, not whether adbd answers this second: while it restarts (after "adb root"
+     * from a PC, or "root:" from Aura) the port is silent for a moment although ADB is meant to be open.
+     */
+    static boolean adbNetworkWanted() {
+        String sw = prop("persist.internet.adb.enable").trim();
+        if (!sw.isEmpty()) return "1".equals(sw);
+        return number(prop("service.adb.tcp.port")) > 0 || number(prop("persist.adb.tcp.port")) > 0;
+    }
+
     /** Null when the kernel's table cannot be read (Android 10+ hides it from apps). */
     private static Boolean isListening(int port) {
         String hex = String.format(Locale.US, ":%04X ", port);

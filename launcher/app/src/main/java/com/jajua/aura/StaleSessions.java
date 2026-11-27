@@ -92,14 +92,9 @@ final class StaleSessions {
      * while a PC is connected: these firmwares serve one adb connection at a time). Worker thread.
      */
     static String runCommand(Context c, String command) {
-        boolean opened = false;
+        boolean[] opened = {false};
         try {
-            int port = SystemInfo.adbNetworkPort();
-            if (port <= 0) {
-                SystemInfo.setAdbNetwork(c, true);
-                opened = true;
-                for (int i = 0; i < 20 && (port = SystemInfo.adbNetworkPort()) <= 0; i++) Thread.sleep(500);
-            }
+            int port = adbPort(c, opened);
             if (port <= 0) {
                 Log.w(TAG, "adb did not open");
                 return null;
@@ -119,8 +114,26 @@ final class StaleSessions {
             Log.w(TAG, "command failed: " + ex);
             return null;
         } finally {
-            if (opened) SystemInfo.setAdbNetwork(c, false);
+            if (opened[0]) SystemInfo.setAdbNetwork(c, false);
         }
+    }
+
+    /**
+     * The local adbd port, or 0. ADB that is set to open but restarting (silent for a moment) is waited
+     * for and never touched; only ADB that is set to closed is opened, and then opened[0] says so, so the
+     * caller closes it again. Deciding from the silent port alone once left a box with ADB closed for good.
+     */
+    static int adbPort(Context c, boolean[] opened) throws InterruptedException {
+        int port = SystemInfo.adbNetworkPort();
+        if (port > 0) return port;
+        if (SystemInfo.adbNetworkWanted()) {
+            for (int i = 0; i < 40 && (port = SystemInfo.adbNetworkPort()) <= 0; i++) Thread.sleep(500);
+            return port;
+        }
+        SystemInfo.setAdbNetwork(c, true);
+        opened[0] = true;
+        for (int i = 0; i < 30 && (port = SystemInfo.adbNetworkPort()) <= 0; i++) Thread.sleep(500);
+        return port;
     }
 
     private static int bootCount(Context c) {

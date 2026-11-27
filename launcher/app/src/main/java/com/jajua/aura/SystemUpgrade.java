@@ -135,9 +135,19 @@ final class SystemUpgrade {
         return Math.max(dm.widthPixels, dm.heightPixels) >= 1920;
     }
 
+    /**
+     * The oldest Aura that may stay in /system: the first one declaring the privileged permissions and
+     * settings shortcuts this Aura relies on (1.4.2). Raise it only when a version adds new ones, or every
+     * Aura update would restart the box just to copy itself.
+     */
+    static final int SYSTEM_AURA_MIN = 16;
+
+    @SuppressWarnings("deprecation")
     static boolean auraInSystemCurrent(Context c) {
         File sys = new File("/system/priv-app/Aura/Aura.apk");
-        return !sys.exists() || md5(sys).equals(md5(new File(c.getApplicationInfo().sourceDir)));
+        if (!sys.exists()) return true;
+        android.content.pm.PackageInfo pi = c.getPackageManager().getPackageArchiveInfo(sys.getPath(), 0);
+        return pi != null && pi.versionCode >= SYSTEM_AURA_MIN;
     }
 
     // ------------------------------------------------------------ applying it (root)
@@ -172,14 +182,17 @@ final class SystemUpgrade {
 
         // 2. Root through this box's own adbd.
         p.step(c.getString(R.string.up_root));
-        boolean opened = false;
-        int port = SystemInfo.adbNetworkPort();
-        if (port <= 0) {
-            SystemInfo.setAdbNetwork(c, true);
-            opened = true;
-            c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(CLOSE_ADB, true).commit();
-            for (int i = 0; i < 30 && (port = SystemInfo.adbNetworkPort()) <= 0; i++) sleep(500);
+        boolean[] openedBox = {false};
+        int port;
+        try {
+            port = StaleSessions.adbPort(c, openedBox);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            port = 0;
         }
+        boolean opened = openedBox[0];
+        // The reboot cuts the session before ADB can be closed: the next start closes it (afterBoot).
+        if (opened) c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(CLOSE_ADB, true).commit();
         if (port <= 0 || !becomeRoot(port)) {
             if (opened) closeAdbNow(c);
             return c.getString(R.string.up_err_root);
